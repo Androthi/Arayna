@@ -1,0 +1,97 @@
+
+[HPR Settings]
+mainfile=src\Arayna.hla
+tab=3
+backups=0
+options=00002040
+Project Version=10
+usetemp=true
+useunits=true
+useback=true
+wscan header=src\win_inc.hhf
+findscope=00000001
+findflags=00000001
+
+[HPR Jobs]
+Arayna
+
+[HPR Folders]
+units
+res
+src
+doc
+mods
+temp
+bak
+
+[Arayna]
+console=false
+output=Arayna.exe
+type=modular
+main=Arayna.hla
+
+[Arayna.link]
+-heap:0xF4240,0xF4240
+-stack:0xF4240,0xF4240
+-base:0x4000000
+-entry:HLAMain
+-section:.data,RW
+-section:.text,ER
+-machine:ix86
+
+
+[Arayna.files]
+Arayna.hla,src,hlaprogram
+Arayna.rc,res,resource
+rsrc.hhf,res,include
+externals.hhf,src,include
+moduleunit.hla,src,hlaunit
+arayna.hhf,src,include
+fileio.hla,src,hlaunit
+scanner.hla,src,hlaunit
+imports.hla,src,hlaunit
+utils.hla,src,hlaunit
+objectControl.hla,src,hlaunit
+araynamacros.hhf,src,include
+eval_unit.hla,src,hlaunit
+listControl.hla,src,hlaunit
+gensrc.txt,src,misc
+genLexer.hla,src,hlaunit
+genLexer.hhf,src,include
+araynaclasses.hhf,src,include
+function_list.txt,doc,misc
+Arayna.khelp,doc,khelp
+Project_info.txt,doc,misc
+demo.mod,mods,misc
+demo.inc,mods,misc
+concept.mod,mods,misc
+TINY.MOD,mods,misc
+test.mod,mods,misc
+hlaadventure.mod,mods,misc
+GIOGI_01.MOD,mods,misc
+
+[Held Jobs]
+run gen
+
+[run gen]
+type=target
+output=
+target=src\rungen.kmk
+
+[run gen.files]
+rungen.kmk,src,kmake
+
+[Notes]
+<text>
+0.95.00 -load game fixed, now object events are halted while loading.  
+</text>
+
+
+[Arayna.extlinked]
+kernel32.lib
+user32.lib
+hlalib.lib
+COMCTL32.LIB
+COMDLG32.LIB
+HIDELIB.LIB
+gdi32.lib

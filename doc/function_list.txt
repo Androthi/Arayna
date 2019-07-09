@@ -1,0 +1,356 @@
+List of scripting instructions, sections
+
+.arayna {}
+	declare an arayna script
+
+.include s
+	include a file
+	
+.var {}
+	declare a variants section
+	
+.const {}
+	declare a constants section
+
+.define {}
+	declare a define section
+	
+.id = n
+	set a unique object number
+	
+.label = s
+	set object name
+	
+.desc = s
+	set object description
+	
+.area {}
+	define an area
+	
+.object {}
+	define an object object
+	
+.agent {}
+	define an agent object
+
+.room {}
+	define a room object
+	
+.dialog {}
+	define a dialog object
+	
+.begin {}
+	declare the initial starting section
+
+.section label {}
+	declare a section
+
+.write( string, variable, constant, nl, [] )
+	writes to the main window.  nl inserts a new line
+
+.wait
+.wait (n)
+	waits for mouse click from user
+	waits for n seconds
+
+.cls
+	clears the main window
+
+.teleport( room.id )
+	At least 1 of these is needed in the .begin section to indicate
+starting location.  This directive allows the script to teleport the player
+to any room.  After teleport, there is a movement interrupt event, room entry,
+room entry event, area event and game events and the room description is
+displayed.
+
+.move( room.id )
+	Like .teleport, but no events take place and no description is displayed.
+
+
+.endgame
+	Stops the current module and clears memory associated with it.
+
+.if( expr ) {}
+.elseif( expr ) {}
+.else {}
+.while( expr ) {}
+.forever {}
+.break
+.breakif( expr )
+.continue
+.continueif( expr )
+	conditional and loop structures
+
+.verbs ( verb, verb[] )
+	define verbs for an object
+	(todo: define new verbs )
+
+.state ( state, state[] )
+	define current state of object
+	
+.key = n
+	defines an object id that will serve
+	as a 'key' to unlock a locked container
+		
+.spawn ( id, id[n], id( id, [] ), [] )
+	spawn objects into a room, container, agent
+	id[n] is for stackable items where n is the
+	initial amount in the stack.
+
+.event label {}
+	define an event for an object, with optional embedded section
+	if embedded section is not used, a specific .section is necessary
+		
+.intmove {}
+	optional valid in .arayna section.
+	interrupt for move commands.
+	if used, this is an event called after move command
+	received but before move.
+	@fromroom changed, @moves not yet updated.
+	this section requires a .return!
+	.return 1 tells arayna to process the move/events
+	.return 0 tells arayna to skip this move/events
+	if planning to skip the move, it is important to make sure
+	the player is teleported to a proper room using
+	the .teleport( roomid ) or .move( roomid) instructions,
+	otherwise player will end up in limbo and the game may
+	crash.
+	
+.intevent {}
+	optional valid in .arayna section.
+	interrupt for all events and verbs
+	@lastaction/@lastverb will be valid for upcoming event/object
+	@lastobject also valid
+	ie: called when an object is being examined, but before
+	actual examination code or object event is executed.
+	this section requires a .return!
+	.return 1 tells arayna to process the action/event
+	.return 0 tells arayna to skip this action/event
+
+.verbevent {}
+	optional valid in .arayna section.
+	an event called every time an action verb is used.
+	this event is called after interrupts but before object events
+	
+.saveevent {}
+	event called after the save menu item is selected
+	saving stores the states of all objects, and inventories
+	however, object type variants are not preserved since
+	object addresses change from game to game.
+	
+.loadevent {}
+	event called after the load menu item is selected
+	if the script relies on object addresses being stored in
+	variants, here is a good place to update those variables
+	
+	
+.exits ( id, .. )
+	define exits from a room
+	order in n, s, e, w, ne, nw, se, sw, u, d
+	.. sets all following parameters to 0
+
+.new ( id )		returns <obj>
+	clones a new object with id.
+	
+.begindialog
+	begin a dialog sequence
+		
+.enddialog
+	end a dialog sequence
+
+.newdialog ( id, id[] )
+	initialize a new dialog sequence with active dialog objects
+	
+.activate ( id, [] )
+	add more dialog topics to the current dialog set
+	
+.deactivate ( id, [] )
+	remove topics from the current dialog set
+
+.random ( low, high )		returns type_int
+	returns a random number between low and high
+
+.destroy( obj )
+	frees the memory of a previously created object
+
+method functions
+
+	
+<room>.exit( direction, <room> ) 
+	sets room exit direction to new room at runtime
+	dest <room> may be zero to remove existing exit
+	
+<container>.add( <obj> )
+	adds object to container.  container may be any valid container
+	including rooms, agents and the player.
+
+<container>.has( id )		returns object
+	looks in container for object matching id and
+	returns the object if found.
+
+<container>.remove( id )		returns object
+	removes object with matching id from container
+
+<container>.inv {}
+	loops through every item in a container
+	returns item in @lastobject
+	returns @lastobject.id ==0 when all items have
+	been listed or inventory is empty
+	standard looping functions available; .break/if, .continue/if
+
+<obj>.state( @state, [] )
+	set the state of an object at runtime
+	
+<obj>.isstate( @state )
+	returns true if object is in state @state
+	
+<obj>.verbs( @verb, [] )
+	change the verb set of this object
+
+<obj>.event()	
+	run the event of an object (if it has one)
+
+	
+
+INTERNAL CONSTANTS AND OBJECTS
+@moves		current number of moves
+@counter		current constant counter
+@room.id		id of room object to return
+@this			in event sections, current object of event
+@lastobject	last object on which an action was performed
+@thisroom	current room, last one player entered
+@fromroom	previous room, where player came from
+@area			current area object
+@player		player object
+@unlimited	with some objects, signifies unlimited amount
+@lastaction	returns the last action verb performed (see object verbs)
+@lastverb	synonymous with @lastaction
+@counter		used by .const sections for autogeneration of constant values
+
+Object information
+<obj>.id			returns object id number
+<obj>.label		returns string of object label
+<obj>.desc		returns string of object description
+<obj>.state		returns state of object
+<obj>.key		returns key id of object
+<obj>.charges	returns charges of object
+<obj>.stack		returns current stack value of object
+<obj>.maxstack	returns maximum stack value of object
+
+
+	
+OBJECT STATES
+
+@open
+@close
+@lock
+@unlock
+@on
+@off
+@pull
+@push
+@break
+@fix
+@shop
+
+OBJECT VERBS
+
+standard verbs, these do not
+alter object states
+
+	@examine	@read
+	@attack
+	@search
+	@buy
+	@climb
+	@talk
+	@sell
+	@steal
+	@ask
+	@say
+	@sing
+	@turnleft
+	@turnright
+	@clean	
+	@get
+	@drop
+	@shoot
+	@swim
+	@press
+	@tie
+	@untie
+	@look
+	
+these verbs 'use' a charge in the object
+possibly destroying it if charges run out
+
+	@eat
+	@drink
+	@use
+
+these verbs set the object to @on state
+and 'use' the object as well
+
+	@wear
+	@wield
+	@activate	
+
+these verbs set the object to @off state	
+
+	@remove
+	@unwield
+	@deactivate
+
+this verb sets the object to @open state
+
+	@open
+	
+this verb sets the object to @close state
+
+	@close
+
+this verb sets the object to @lock state
+
+	@lock
+
+this verb sets the object ot @unlock state
+
+	@unlock
+
+this verb sets the object to @break state
+
+	@break
+
+this verb sets the object to @fix state
+
+	@fix
+
+these verbs wait for click on an object
+and return it in @lastobject
+
+	@usewith
+	@useon
+	@combine
+	@target
+
+
+COMPOUND VERBS
+@general		get, drop, use, examine
+@wearable	get, drop, wear, remove, examine
+@wieldable	get, drop, wield, unwield, examine
+@fooditem	get, drop, eax, examine
+@drinkitem	get, drop, drink, examine
+
+
+DIRECTIONS
+@north
+@south
+@east
+@west
+@up
+@down
+@northeast
+@northwest
+@southeeast
+@southwest
+

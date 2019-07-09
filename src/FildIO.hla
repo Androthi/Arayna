@@ -1,0 +1,148 @@
+unit fileiounit;
+
+	#include ("src/arayna.hhf")
+	?@nodisplay := true;
+
+
+const
+	MaxNestedIncludes	:uns32 := 40;
+
+storage
+	includeStk			:dword[ MaxNestedIncludes ];
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// popIncStack-
+//
+//	Pops an item off the include stack and sets up the text pointers to
+// resuming processing the previous file (before the include, text, or
+// macro).
+
+procedure popIncStack; @noframe;
+begin popIncStack;
+
+USE (ESI, EDI, EAX, EBX);
+	if (includeSP < 1 ) then
+		stc();
+		jmp done;
+	endif;
+	
+	mov (includeSP, ebx);
+	mov (includeStk[ebx*4], ebx);
+	
+	// Get important values from the current fileList record
+	// that we have to restore:
+	
+	move (filenodeebx.lineNumber, genLine);
+	mov (filenodeebx.buffer, esi);
+	//bufesi.getBufferPtr();
+	//mov (eax, BOF);
+	bufesi.getEOF();
+	mov (eax, genEOF);
+	mov (bufesi.cursor, esi);
+	mov (esi, BOF);
+	mov (ebx, filenode);
+	dec( includeSP );
+	//dbg.put ("popped :", filenodeebx.filename);
+	clc();
+	done:
+ENDUSE;
+ret();
+end popIncStack;
+
+
+procedure pushIncStk; @noframe;  	
+begin pushIncStk;
+USE (EAX, ESI, EBX);
+	
+	// Push this include record onto the "include stack."
+	mov (filenode, ebx);
+	inc( includeSP );
+	if( includeSP >= MaxNestedIncludes ) then
+
+		str.put (strbuf, "Too many nested include files when processing ",
+			filenodeebx.filename, nl );
+	
+	else
+		
+		// Copy the current file data to the new top of the include stack
+		move (genLine, filenodeebx.lineNumber);
+		mov (filenodeebx.buffer, ebx);
+		mov (esi, (type tBuffer[ebx]).cursor);
+		mov (includeSP, ebx);
+		mov (filenode, includeStk[ebx*4]);
+		
+	endif;
+	
+ENDUSE;
+ret();
+end pushIncStk;
+
+
+// addFileToList-
+//
+// original author: Randall Hyde
+// customized for arayna
+//
+//	Creates a fileList record for the file specified by "theFile":
+
+procedure addFileToList ( theFile:string); 
+begin addFileToList;
+
+	// First, preserve the current file information by adding
+	// it to the file info list.
+	//dbg.put ("addFileToList");
+	fileList.newNode();
+	mov (eax, ebx);
+	//dbg.mark;
+	try
+		tBuffer.create (theFile);
+		mov (esi, filenodeebx.buffer);
+		mov (esi, edi);
+		str.a_cpy (theFile);
+		mov (eax, filenodeebx.filename);
+		mov (ebx, filenode);
+		fileList.append ([ebx]);
+	anyexception
+		//dbg.put ("file open failure");
+		showerror ("Unable to open file :", theFile);
+	endtry;
+	//dbg.put ("/addFileToList");
+end addFileToList;
+
+
+procedure mapFile( theFile:string );
+begin mapFile;
+	//dbg.put ("mapFile :", theFile);
+	pushad;
+
+	// Push this file onto the include stack and add it to our file list:
+	addFileToList( theFile);
+	mov( 1, genLine );
+	mov (filenodeebx.buffer, esi);
+	bufesi.getBufferPtr();
+	mov (eax, BOF);
+	bufesi.getEOF();
+	mov (eax, genEOF);
+	
+	popad();
+	//dbg.put ("/mapFile");
+end mapFile;
+
+procedure LoadModule ( fileaddr:dword);
+	var
+		thefile		:string;
+
+begin LoadModule;
+	dbg.put ("LoadModule :", (type string fileaddr));
+	mov (str.talloc (256), thefile);
+	mov (fileaddr, eax);
+	str.cpyz (eax, thefile);
+	mapFile (thefile);
+	mov (BOF, esi);
+	parse (esi);
+	dbg.put ("/LoadModule");
+end LoadModule;
+
+end fileiounit;
+

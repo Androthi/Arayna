@@ -1,0 +1,234 @@
+proc
+	
+	// scanner
+	getID		:procedure( src:dword in esi ) {@returns("@nc")}; @external;
+	stringToBuffer	:procedure( startID:dword in edi; endID:dword in esi ) {@returns("@nc") }; @external;
+	getNextObject	:procedure( var attr:attr_t ) { @returns("@nc") }; @external;
+	parseExistFile		:procedure( var attr:attr_t ) { @returns("@nc") };@external;
+	parseCommands	:procedure( state:dword ) {@returns("@nc") }; @external;
+	
+// arayna.hla
+procedure Error2 (err_msg:string);	@external ("Arayna_err2");
+procedure SetWindowTitle ( title_msg:string); @external ("Arayna_SetWindowTitle");
+procedure WriteError (err_msg:string);	@external ("Arayna_WriteError");
+procedure WriteMain ( _msg_:string);	@external ("Arayna_WriteMain");
+procedure UpdateNavigation (cur_room:dword in esi); @external ("Arayna_UpdateNavigation");
+procedure SetInfo; @external ("Arayna.SetInfo");
+procedure ListView_Clear( hlist:dword ); @external ("Arayna.ListView_Clear");
+procedure ListView_Add ( hlist:dword; theObject:dword; objectName:string); @external ("Arayna.ListView_Add");
+procedure pause_msg( time:dword ); @external ("Arayna_pause_msg");
+procedure EnterCurrentRoom;	@external ("Arayna_EnterCurrentRoom");
+procedure objectInterrupt; @external( "Arayna_objectInterrupt");
+
+
+//moduleunit
+procedure parse (source:dword in esi);	@external ("Arayna_parse");
+procedure runSection (src:dword in esi); @external ("Arayna_runSection");
+procedure saveModule; @external;
+procedure loadModule; @external;
+procedure executeSection (section_id:string); @returns ("EAX"); @external ("Arayna_executeSection");
+procedure peek (src:dword in esi); @returns("EAX"); @external;
+procedure getAction (var attr:attr_t); @returns ("@nc"); @external;
+procedure parseNew (src:dword in esi; var attr:attr_t); @returns ("@nc"); @external;
+procedure parseSearch (src:dword in esi; var attr:attr_t); @returns ("@nc"); @external;
+procedure parsePut (src:dword in esi); @external;
+procedure parseRandom (src:dword in esi; var attr:attr_t); @returns ("@nc"); @external;
+procedure parseQueryAsk( src:dword in esi; var attr:attr_t); @returns( "@nc" ); @external;
+procedure parseSection( secLabel:string ); @returns("@nc"); @external;
+procedure CleanUp;	@external ("Arayna_CleanUp");
+procedure parseState; @external;
+procedure doTeleport (room:uns32); @external("Arayan_DoTeleport");
+procedure processFunction( var attr:attr_t ); @returns("@nc"); @external("Arayna_processFunction");
+procedure parseGetString( var attr:attr_t );	@returns("@nc"); @external("Arayna_getString");
+procedure parseGetNumber( var attr:attr_t ); @returns("@nc"); @external("Arayna_getNumber");
+procedure parseActivate( state:dword ); @returns("@nc"); @external;
+procedure setupTopics; @external;
+procedure setupCommands; @external;
+procedure parseFileIO( var attr:attr_t; new:boolean ); @returns("@nc"); @external;
+
+// fileio.hla
+procedure pushIncStk; @external;
+procedure popIncStack; @external;
+procedure mapFile( theFile:string ); @external;
+procedure addFileToList(theFile:string);  @external;
+procedure openModule ( fileaddr:dword);	@external ("Arayna_openModule");
+
+// scanner.hla
+//procedure getID (src:dword in esi);	@external;
+procedure getColon (src:dword in esi);	@returns ("@nc"); @external;
+procedure getLeftBrace (src:dword in esi); @returns ("@nc"); @external;
+procedure getRightBrace(src:dword in esi); @returns ("@nc"); @external;
+procedure getComma (src:dword in esi);	@returns ("@nc"); @external;
+procedure getEqual (src:dword in esi);	@returns ("@nc"); @external;
+procedure getLeftBracket (src:dword in esi); @returns ("@nc"); @external;
+procedure getRightBracket (src:dword in esi);@returns ("@nc"); @external;
+procedure getUnsigned (src:dword in esi); @returns ("EAX"); @external;
+procedure getObjectID (src:dword in esi); @returns ("EAX"); @external;
+procedure getNumber (src:dword in esi); @returns ("@nc"); @external;
+procedure getString (src:dword in esi); @returns ("EAX"); @external;
+procedure loadString( var attrsrc:attr_t; dst:string ); @returns ("@nc");	@external;
+procedure getLeftParen(src:dword in esi); @returns ("@nc"); @external;
+procedure getRightParen(src:dword in esi); @returns ("@nc"); @external;
+procedure ExtractNumber; @returns("EAX"); @external;
+procedure findNext ( tofind:dword; nestwith:dword); @external;
+procedure getDirective (src:dword in esi); @returns ("EAX"); @external;
+procedure getCommand (src:dword in esi); @returns ("EAX"); @external;
+procedure getEasyDirective (src:dword in esi); @returns ("EAX"); @external;
+procedure getVariable (src:dword in esi); @returns ("EAX"); @external;
+procedure getDirection( src:dword in esi ); @returns("@nc"); @external;
+procedure getSectionDirective( src:dword in esi ); @returns("@nc"); @external;
+procedure getDot( src:dword in esi ); @returns("@nc"); @external;
+
+procedure tableLookup (src:string); @returns ("EAX"); @external;
+
+// utils.hla
+//procedure getIndex (x:dword; y:dword; row_size:dword); @external;
+procedure copyLword (src:dword; dst:dword); @external;
+procedure zeroLword (src:dword ); @external;
+procedure copyAttr (src:dword; dest:dword); @external;
+procedure zeroAttr( var src:attr_t ); @external;
+procedure Cmd_Dbg_Listrooms( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_Dbg_Listobj( hwin:dword; wparam:dword; lparam:dword ); @external;
+
+
+procedure Proc_Spawn(lparam:dword; wparam:dword; umsg:uns32; hwin:dword); @external;
+procedure Proc_Teleport(lparam:dword; wparam:dword; umsg:uns32; hwin:dword); @external;
+procedure Proc_Amount(lparam:dword; wparam:dword; umsg:uns32; hwin:dword); @external;
+procedure Proc_About(lparam:dword; wparam:dword; umsg:uns32; hwin:dword); @external;
+procedure Proc_GetString(lparam:dword; wparam:dword; umsg:uns32; hwin:dword);  @external;
+procedure Proc_GetNumber(lparam:dword; wparam:dword; umsg:uns32; hwin:dword);  @external;
+procedure arayna_getString( query:string; var attr:attr_t ); @external ("arayna_getString");
+procedure arayna_getNumber( query:string; var attr:attr_t ); @external ("arayna_getNumber");
+procedure Cmd_Dbg_Teleport( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_Dbg_Spawn( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure proc_Control(lparam:dword; wparam:dword; umsg:uns32; hwin:dword); @external;
+procedure Proc_Inv(lparam:dword; wparam:dword; umsg:uns32; hwin:dword); @external;
+procedure Proc_Window ( lparam:dword; wparam:dword; umsg:uns32; hwin:dword ); @external;
+
+
+procedure Cmd_North  ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_NorthWest ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_West  ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_SouthWest ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_South ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_SouthEast ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_East ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_NorthEast ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_Center ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_Up ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_Down  ( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure ListView_Notify  ( hwin:dword; wparam:dword; lparam:dword ); @external;
+
+
+procedure Cmd_Action_Get( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_Action_Use( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_Action_Examine( hwin:dword; wparam:dword; lparam:dword ); @external;
+procedure Cmd_Action_Drop( hwin:dword; wparam:dword; lparam:dword ); @external;
+
+// eval_unit.hla
+procedure expr (var attr: attr_t); @external;
+procedure addition( var src:attr_t; var dest:attr_t ); @external;
+procedure subtract( var src:attr_t; var dest:attr_t ); @external;
+procedure multiply( var src:attr_t; var dest:attr_t ); @external;
+procedure divide( var src:attr_t; var dest:attr_t ); @external;
+procedure saveToken (var save:save_t); @external;
+procedure restoreToken (var save:save_t); @external;
+procedure freeAttr ( var attr: attr_t); @external;
+procedure coerce (var left:attr_t; var right:attr_t ); @external;
+procedure equals ( var rightOp:attr_t; var leftOp:attr_t ); @external;
+procedure evaluate (src:dword in esi); @returns ("nc"); @external;
+
+
+static
+	buf			:byte[100]; @external;
+
+storage
+	hwnd				:dword;			@external;
+	hedit			:dword;				@external;
+	strbuf				:string;		@external;
+	buffer_str			:string;		@external;
+	BOF					:pChar;			@external;
+	err					:boolean;		@external;
+	showcontrols				:boolean;		@external;
+	showcommands		:boolean; @external;
+	hlistcmd			:dword; @external;
+	oldcmdwind		:dword; @external;
+	includeSP			:int32;			@external;
+	hlistdisp					:dword;		@external;
+	hlistinv				:dword;		@external;
+	main_menu	:dword; @external;
+
+	id_attr				:pointer to attr_t; @external;
+	battr					:attr_t; @external;
+	return_attr			:attr_t;	@external;		
+	htoolwind					:dword;		@external;
+
+	id_attrib			:dword[4];		@external; // (lword technically)
+	id_comp				:dword[4];		@external;
+
+	symbol_tbl			:pointer to table; @external;
+
+	history			:tBuffer;	@external;
+	game				:game_t;		@external;
+	gamesect			:string;		@external;
+
+	comp_fooditem	:lword; @external;
+	comp_drinkitem	:lword; @external;
+	comp_general		:lword; @external;
+	comp_wearable	:lword; @external;
+	comp_wieldable	:lword; @external;
+
+	objectList		:arayna_listClass; @external;
+	roomBuffer		:tBuffer;	@external;
+	roomList			:arayna_listClass; @external;
+	
+	internal_counter	:uns32; @external;
+	return		:dword;	@external;// used for return value for various dialogs
+
+		hdll			:dword; @external;
+	haccel		:dword; @external;			// accelerator handle
+	//hhook			:dword;			// handle of keyboard hook
+	
+	// navigation bar handles
+	hnorth		:dword; @external;
+	hsouth		:dword; @external;
+	heast			:dword; @external;
+	hwest			:dword; @external;
+	hnortheast	:dword; @external;
+	hnorthwest	:dword; @external;
+	hsoutheast	:dword; @external;
+	hsouthwest	:dword; @external;
+	hup			:dword; @external;
+	hdown			:dword; @external;
+	hinv			:dword; @external;
+	hwndinv		:dword; @external;
+	config		:tConfig; @external;
+	wc				:w.WNDCLASSEX; @external;	// window class structure
+	msg			:w.MSG;	 @external;		// message record
+	curItem		:dword; @external;
+	logfont		:w.LOGFONT; @external;
+	hfont			:dword; @external;
+	cf				:w.CHOOSEFONT; @external;
+		hinfo			:dword; @external; // handle for info display on top
+	hmenu			:dword;	 @external;	// tracked menu
+	pt				:w.POINT;	 @external;
+	ini			:arayna_ini; @external;
+
+	fileList	:arayna_fileList; @external;
+	filenode	:pointer to arayna_fileNode; @external;
+	strconst	:tBuffer; @external;
+
+	hinst			:dword;	@external;		// instance handle
+	openmod		:boolean; @external;
+
+	message_table	:MsgProcPtr_t; @external;
+	command_table	:MsgProcPtr_t; @external;
+
+	sep	:string; external;
+
+
+	
+
+readonly
+	version	:string;	@external;
+

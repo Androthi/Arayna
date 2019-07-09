@@ -1,0 +1,2052 @@
+[kHelp Header]
+Author=Sevag Krikorian
+Version=0.94.20
+Created=Jan 19,2007
+Modified=May 21,2010
+Licence=Public Domain
+
+[kHelp Contents]
+Arayna
+The Arayna Language
+.Modes
+.Basic Concepts
+..Comments
+..Script Format
+..Instructions
+..Variables and constants
+..Expression Evaluation
+Learning the Language
+.Tutorial
+.Events
+..Event Order
+Instruction Reference
+.arayna
+.showcontrols
+.hidecontrols
+.showcommands
+.hidecommands
+.debug
+.label
+.desc
+.const
+.var
+.include
+.begin
+.section
+.intmove
+.intevent
+.verbevent
+.saveevent
+.loadevent
+.define
+.area
+.id
+.object
+.container
+.agent
+.player
+.room
+.verbs
+.exits
+.dialog
+.command
+.verbs
+.charges
+.stack
+.event
+.state
+.group
+.key = key
+.key = uses
+.teleport
+.move
+.write
+.cls
+.wait
+.endgame
+.if
+.elseif
+.else
+.while
+.forever
+.breakif
+.break
+.continue
+.continueif
+.new
+.random
+.getstring
+.getnumber
+.openfile
+.newfile
+.existsfile
+.destroy
+.newdialog
+.begindialog
+.enddialog
+.activate
+.deactivate
+.newcommands
+.addcommands
+.removecommands
+Function Reference
+.fverbs = verbs
+.fstate = state
+.fisstate = isstate
+.fexit = exit
+.fhas = has
+.fevent = event
+.fadd = add
+.finv = inv
+.fremove = remove
+.fwrite = write
+.fread = read
+.fsave = save
+.fclose = close
+.fseek = seek
+Internal Variables
+Update Log
+
+[Arayna]
+
+Arayna is a GUI based Game Engine that processes modules written in an interpreted language.  The engine supports text-based interactive fiction games.
+
+
+[The Arayna Language]
+
+The Arayna Language contains some basic concepts from interpreted programming languages.  Knowledge of programming is not required for writing Arayna scripts.  However, some programming knowledge does help in designing more advanced modules.
+
+[Modes]
+
+There are basically two modes of operation.  Standard and dialog.  Standard mode takes place in 'room' modules where navigation is allowed via a navigation panel.  In dialog mode, the navigation panel is replaced by a list of commands that can be executed by the player.
+
+In Standard mode, gameplay begins with a ".teleport( someroom )" instruction.
+Arayna checks for the room, displays any description of the room, checks for exits out of the room and updates the navigation panel.  If there are objects in the room, a list of objects is created and listed.  Arayna then checks to see if there is a special ".event" associated with this room, if so, the event section is executed.
+Gameplay continues navigating through the 'rooms' and ends when an ".endgame" instruction is incountered.
+
+In Dialog mode, gameplay begins with a ".begindialog" instruction.  Arayna searches through a list of currently active dialog objects and displays them for the player to choose.  Each dialog may have a description, if so, it is displayed.  Dialogs may also have an ".event" associated which is exectued promptly.
+Dialog mode ends when an ".enddialog" instruction is encountered, after which, the game is restored to "Standard" mode and continues from there.
+ 
+[Basic Concepts]
+
+Arayna is capable of some basic math functions on integers and floating point variables.
+
+Arayna scripts are a series of instructions and math operations.
+
+Arayna instructions all begin with a dot '.' character.
+Arayna internal variables and objects all begin with an at sign '@'
+Arayna does not have any reserved words.
+
+Instructions may have further functions, see individual instructions for more information.
+
+Legal labels must all begin with an alpha character 'a..z' but may contain alphanumeric characters after the first 'a..z', '0..9'
+
+[Comments]
+
+Comments allow writing information in a module script that will be ignored by the compiler.  There are two kinds of comments.
+
+Line Comments.  A double slash indicates everything following the double slash to the end of the is ignored by the compiler.
+
+// this is a line comment.
+
+Block Comments are used to have the compiler ignore blocks (or many lines) of text.  Use '/*' to begin a block and '*/' to end a block. 
+
+/*
+	This is a block
+	of comments.
+*/
+
+
+
+
+[Script Format]
+
+All arayna scripts begin with an .arayna{} where a series of instructions are encapsulated in braces.
+
+.arayna {
+
+	// other instructions
+	// objects and execution code
+
+	.begin {
+	
+		// execution begins here
+	
+	}
+
+}
+
+
+The script engine reads the instrcutions which tell arayna how to setup the objects in the game world.  Once the initial setup is done, arayna enters the default 'section' which is a .begin{} instruction where initial execution begins.  These are the bare minimum required by a script.
+
+For general purposes, anything within opening and closing braces '{' and '}' are considered 'sections'
+.arayna and .begin are general purpose sections.  Specific sections may also be declared with the .section id{} instruction.
+
+.section sectionName {
+
+	// anything legal in a section may go here
+
+}
+
+Such sections may be called implicitly or automatically via events, described later.  When called, execution transferes to that section and returns to the point of the call once the section is done.
+
+
+[Instructions]
+
+Instructions are built-in keywords and functions that Arayna recognizes and processes.  All such Instructions begin with a period character '.' followed by the Instruction name.  Typically, instruction will have a special syntax.
+A comprehensive list of instructions is in the "Instruction Reference" section.
+
+Some sample directives:
+
+.include "somefile.txt"  // open "somefile.txt" and continue processing
+.section someSection {
+
+	// this is a section
+	
+}
+
+
+[Variables and constants]
+
+There are two kinds of symbolic representation in arayna, variants and constants.  The only difference between the two is that variants may be changed while constants may not.
+Both may contain objects, integers, floating point, records and strings
+
+Variants are declared in a .var{} section
+Constants are declared in a .const{} section
+
+When declared in an .arayna{} section, the scope of the labels are global, they may be accessed anywhere with one limitation.  During initialization, if labels are used, they must be declared prior to the point of their usage.  This limitation is not present for execution sections however since execution begins only after the entire script is read into memory.
+
+In the examples below, I will use .const sections, keep in mind that everything legal in a .const section, with the exclusion of one thing described below is also legal in a .var section.
+
+.const {
+
+	// begins a const section
+	
+	// a declaration of an integer label
+	one = 1
+	
+	// a declaration of a floating point label
+	float = 1.1
+
+	// a declaration of a string
+	string = "this is a string
+
+	// strings may also be declared in multi lines
+	stringlines =
+		"this is line one"
+		"this is line two"
+		"this is line three"
+		
+	// records are also allowed
+	record {
+		
+		// same format as the const section
+		// these symbols are accessed via
+		// record.xxx 
+		one = 1
+		float = 1.1
+		
+		// nested records are also allowed
+		// these symbols are accessed via
+		// record.nested.xxx
+		nested {
+			one = 1
+			float = 1.1
+		}
+	}
+	
+	// two dimensional arrays are allowed
+	
+	array [ 2, 3 ] {
+		1, 2
+		3, 4,
+		5, 6
+	}
+
+}
+
+The above is typical of both variants and constants.  Constants have further conveniences that may be used.  Arayna maintains an internal counter which begins with 1, using a labelname followed immediately by a period '.' with no spaces in between tells Arayna to equate the constant to the internal counter value and increment that value by 1.
+
+eg:
+
+.const {
+	one.
+	two.
+	three.
+}
+
+one will be set to 1, two to 2, three to 3.
+
+The internal counter may also be set to any desired value with the equasion @counter = n
+
+.const {
+
+	@counter = 20
+	twenty.
+	twentyone. 
+
+}
+
+In this case, twenty will equal 20 and twenty one will equal 21
+This feature is useful when setting up rooms and objects since each must have a unique ID number, having Arayna pick numbers reduces the chance of duplicate IDs
+
+
+[Expression Evaluation]
+
+Expression Evaluation handles arithmatic and logical operations.  These may appear in conditional branching diretives such as .if and .while, or in the .write directive.  Values in global and local variables are changed useing the evaluator.  The evaluator is similar to ones supported in high level languages.
+
+
+Eg:
+
+myVar = 4
+
+.if ( myVar > 3) {
+	.write ("The value of myVar is greater than three")
+}
+
+The expression evaluator recognizes the following operations.
+
+Math operations: 
+	+	addition
+	-	subtraction
+	/	division
+	%	modulo
+	*	multiplication
+	=	equasion
+	()	precedence
+	-=	minus equal
+	--	minus 1
+	+=	plus equal
+	++	plus 1
+	/=	divide equal
+	*=	multiply equal
+	
+Boolean:
+	<	less than
+	>	greater than
+	<=	less than or equal to
+	>=	greater than or equal to
+	==	is equal to
+	!=	not equal to
+	&&	boolean and
+	||	boolean or
+	
+Logical:
+	!	logicl not
+	^	logical xor
+	&	logical and
+	|	logical or
+	
+= n	set varaible equal to var
++ n	add n
+- n	subtract n
+* n	multiply by n
+/ n	divide by n
+++		add one to a variable
+--		subtract one from a variable
++= n	add n to a variable
+-= n	subtract n from a variable
+*= n	multiply a variable by n
+/= n	divide a variable by n
+
+
+[Learning the Language]
+
+	To help in learning the Arayna scriptiong language, several demo modules are included with the release package along with a sample adventure.  These modules are briefly described here.  To get a better idea, load the modules in a text editor and view the structure of the language.  The demonstration modules are commented for clarification.
+	
+conept.mod
+	This module showcases the Arayna language variable and constant formats, some of its math capabilities, writing output to the main window and the use of some looping and conditional instructions.
+	
+demo.mod
+demo.inc
+	This module and supporting include file demonstrades some scripting features and indroduces the dialog feature, introduces some rooms and objects, and ways to change objects after they are created.
+
+test.mod
+	This module is mainly for testing Arayna scripting features.  Nevertheless, it demonstrates some of the things that may be accomplished by the language and introduces the use of interrupts.
+		
+tiny.mod
+	A more complex example, this one is a mini adventure of 10 rooms and completing it requires completion of very simple puzzles, finding an object and communicating with an agent.
+	
+tutorial.mod
+	The complete script of a simple turotial covered in the Tutorial section.
+	
+hlaadvanture.mod
+	This is an Arayna port of Paul Pank's hlaadventure. Gameplay is different from the original.
+	
+[Tutorial]
+
+The best way to learn a language is to use it.  In this section, the concepts will be covered so that you may be able to determine how to use the various instructions/functions available in the reference sections.
+
+The simplest module consists of an arayna section.  Create a file called "Tutorial.mod" in a text editor and save it in the mods folder of Arayna.  Set Arayna option to Open Last Mod (should be checkmarked).
+
+
+.arayna { 
+
+}
+
+Save that and open it from Arayna.  With this you will see a blank screen since the module doesn't do anything.
+Exit Arayna.
+
+We can now add a label and description to the module.  In any Arayna object, a label is always a short name that identifies the object and a desc is a more in depth description of what the object does.
+
+
+.arayna { 
+
+	.label = "Tutorial Mod"
+	.desc = "Learning the Arayna language."
+
+}
+
+
+Save this and run Arayna.  If you set it to Open Last Mod, this will open the module automatically.
+
+Not much has changed, except now you should see "Tutorial Mod" in the title bar and selecting Help->Module Info will show you the .desc
+
+Now to actually do something, we will need a .begin {} section.  This tells Arayna to begin running the main script.  It should be the last section in the source, after everything else is declared.  Since we have nothing so far we can just add it after the .desc
+We'll also write some output to the window.
+
+.arayna { 
+
+	.label = "Tutorial Mod"
+	.desc = "Learning the Arayna language."
+
+	.begin {
+		
+		.write( "Hello World" @nl )
+		
+	}
+
+}
+
+Save and run Arayna.  Above, .write instructs Arayna to write to the display window.  @nl stands for new line/paragraph.
+Write is useful also in writing the contents of variables, object numbers, descriptions, labels, boolean expressions, mathametical expressions, etc.
+
+We will now add an object, an area and a room.  The room will have no exits yet.
+These must go in before the .begin {} section.
+
+Objects, areas, rooms, agents, containers, etc are all defined in a .define {} section.
+More descriptions will be added in as 'comments'
+Comments can appear either with a double slash // indicating that the rest of the line is ignored
+or in comment blocks wich occure between a pair of /* and */
+
+Once the object and room have been added, we will also add a .teleport in the .begin section get put us in that room.
+
+
+.arayna { 
+
+	.label = "Tutorial Mod"
+	.desc = "Learning the Arayna language."
+	
+	.define {
+	
+		// define our first object
+		.object {
+		
+			// every object must have a unique id
+			// this number is used to create, search for
+			// and move objects, ids must be greater than
+			// zero
+			
+			.id = 1
+			
+			.label = "Our object"
+			.desc = "some mysterious shapelss things"
+			
+			// in order for a player to do anything with an
+			// object, it must have verbs.  Verbs define
+			// all the actions that can be performed on an object.
+			// verbs use internal constants using the '@' sign
+			
+			.verbs( @examine, @get, @drop )
+			
+			// the above verbs indicate that an object may be 'examined'
+			// which display the .desc information, picked up and dropped.
+			// see the refernece section for a more comprehensive list of
+			// verbs
+			
+		}
+		
+		// areas are a special object that can divide rooms into locations
+		// with unique events.  Not to important for this tutorial, but useful
+		// to have since it will show up in the information bar in Arayna.
+		// areas have no .desc
+		
+		.area {
+		
+			.id = 2
+			.label = "Tutorial Area"
+			
+		}
+		
+		// rooms are objects with their own 'id' space meaning that they have
+		// to be unique between rooms, but not unique between objects.
+		// since Arayna allocates memory based on this id number, it's advisable
+		// to start at 1 and keep new rooms sequencial.
+		
+		.room {
+		
+			.id = 1
+			.label = "Our first room"
+			.desc = "this is where we will be teleported to as a starting room"
+			
+			// this is the id number of the area we declared above, any number
+			// of rooms may have this same area.
+			
+			.area = 2
+			
+			// here we will spawn the object we defined above. 
+			// a spawn will create an object and add it to the
+			// room 'inventory'
+			// you may create as many of the same objects as you like
+			
+			.spawn( 1 )
+			
+			// this tells us to set all exits to 0
+			
+			.exits( .. )
+		}
+	}
+
+	.begin {
+		
+		.write( "Hello World" @nl )
+		
+		// teleport to the starting room
+		.teleport( 1 )
+	}
+
+}
+
+
+You can now run Arayna to enter the room and see what can be done with the one object.  You may have noticed in the demo modules that I haven't used any physical numbers to id objects.  Instead, I use constants to give objects IDs an easy to remember label which will make it easier to spawn them later on. 
+
+
+[Events]
+
+Events are an important part of designing interactive fiction games with Arayna.  An event is a 'section' of script that is executed when certain actions have been taken.  These actions can be entering a new room, events per move, interrupt events, events when objects are manipulated, events when action verbs are used, etc.
+
+For this example, we will expand on the previous tutorial script.
+We will add an event to object #1, there are two ways to add events, one way is to embed the script section right in the object definition, the other is to separately declare a section elsewhere.  for this tutorial, we will embed the event section.
+	
+
+.arayna { 
+
+	.label = "Tutorial Mod"
+	.desc = "Learning the Arayna language."
+	
+	.define {
+	
+		.object {
+			.id = 1
+			.label = "Our object"
+			.desc = "some mysterious shapelss things"
+			.verbs( @examine, @get, @drop )
+			
+			// our event, label the event
+			.event = object1 {
+				
+				.write( "we did something with Object #1" @nl )
+				
+			}
+		}
+		
+		.area {
+		
+			.id = 2
+			.label = "Tutorial Area"
+			
+		}
+
+		.room {
+		
+			.id = 1
+			.label = "Our first room"
+			.desc = "this is where we will be teleported to as a starting room"
+			.area = 2
+			.spawn( 1 )
+			.exits( .. )
+		}
+	}
+
+	.begin {
+		
+		.write( "Hello World" @nl )
+		.teleport( 1 )
+	}
+
+}
+
+
+Save and run the mod.  Now when you do something with the object, examine or get or drop, the event will execute.
+
+Let's now focus on the event:
+
+	// our event, label the event
+	.event = object1 {
+		
+		.write( "we did something with Object #1" @nl )
+		
+	}
+
+During any event, certain internal variables are set according to which object has current focus and what action is being performed on the object.
+
+For example, in an object event, we have @this to indicate the object itself, call it the object 'pointer'
+From the object pointer, we can get the id, label, description, just about everything associated with the object, we can also change its properties.
+
+For now, let's display some of the object properties.
+
+	// our event, label the event
+	.event = object1 {
+		
+		.write( "we did something with Object #1" @nl, 
+					"Object ID = ", @this.id, @nl
+					"Object Label = ", @this.label, @nl
+					"Object Desc = ", @this.desc, @nl @nl )
+		
+	}
+ 	
+
+There are various other useful internal variables.
+
+@lastobject at any time contains a pointer to the last object manipulated.  This may or may not be the same as @this.  Unlike @this which can only be used in event sections, @lastobject can be used in any section.
+
+@thisroom at any time is a pointer to the current room that the player is in
+
+@fromroom at any time is a pointer to the room from which the player came, this can be zero if there hasn't been a previous room yet.
+
+@lastaction or @lastverb is a variable that contains which action was last used on the object.  It will be equal to one of the '@' signed verbes used to create the object, for example, @get or @examine
+
+Let's change the event so that it will only write the information if the player uses the "@get" verb on the object.
+For this, we will need to use conditional branching.
+	
+	// our event, label the event
+	.event = object1 {
+		
+		.if( @lastverb == @get ) {
+			.write( "we picked up the object" @nl, 
+					"Object ID = ", @this.id, @nl
+					"Object Label = ", @this.label, @nl
+					"Object Desc = ", @this.desc, @nl @nl )
+		}
+	}
+
+
+We will now turn this button into a teleporter.  To do so, we'll need to add a new room, and a new verb to the object, also modify the event to handle the new verb and teleportation.
+
+The room will be like the first room with a unique room id and different descriptions.
+
+Add this room below the first room:
+
+		.room {
+		
+			.id = 2
+			.label = "Our second room"
+			.desc = "this is where we will be teleported when 'Our Object' is 'pressed'"
+			.area = 2
+			.exits( .. )
+		}
+
+
+Now for our object, notice we added a @press verb, also we will extend the conditional branching with an .elseif to handle the new verb.
+
+		.object {
+			.id = 1
+			.label = "Our object"
+			.desc = "some mysterious shapelss things"
+			.verbs( @examine, @get, @drop, @press )
+			
+			.event = object1 {
+		
+				.if( @lastverb == @get ) {
+					.write( "we picked up the object" @nl, 
+						"Object ID = ", @this.id, @nl
+						"Object Label = ", @this.label, @nl
+						"Object Desc = ", @this.desc, @nl @nl )
+				}
+				.elseif( @lastverb == @press ) {
+				
+					.teleport( 2 )
+					
+				}
+				
+			}
+		}
+
+Save it and try it out.
+
+Notice that once we teleport to room #2, there is no way back to room #1.  Let's remedy this by adding an exit to room 2 that leads to room 1
+
+To do so, examine the .exits() instruction.  This instruction takes 10 comma separated direcion IDs and '..' which is shorthand for 'everything else is 0'
+Each ID corresponds to a direction of movement and, in order:
+north, south, east, west, northeast, northwest, southeast, southwest, up, down
+
+So for room 2, we want to add a 'south' direction to room one.  South is the second id so:
+
+.exits( 0, 1, .. )
+
+This tells us that north direction is 0, south direction leads to room 1 and the rest of the directions are zero.
+
+another way of writing it is :
+
+.exits( 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 )
+
+We can now return back to room 1 after being teleported to room 2
+
+Now we'll add a way to end the module.  To do so, let's expand the object script to end the game when the object is 'dropped'
+
+
+			.event = object1 {
+		
+				.if( @lastverb == @get ) {
+					.write( "we picked up the object" @nl, 
+						"Object ID = ", @this.id, @nl
+						"Object Label = ", @this.label, @nl
+						"Object Desc = ", @this.desc, @nl @nl )
+				}
+				.elseif( @lastverb == @press ) {
+				
+					.teleport( 2 )
+					
+				}
+				.elseif( @lastverb == @drop ) {
+				
+					.write( "This is the end of the tutorial" @nl )
+					.endgame
+				}	
+			}
+
+Feel free to examine the other included modules for other things that can be done with the Arayna engine.
+
+[Event Order]
+
+Arayna processes various events these are:
+
+Interrupts
+	There are two types of interrupt events, both are optional and only
+	executed if their respective sections have been defined.
+	
+	.intmove{}
+	This is a movement interrupt, if present, it is always executed prior
+	to any movement taking place via .teleport instruction.  It is
+	bypassed if the .move instruction is used instead.
+	Returning a 1 in this event causes the move to be interrupted, as in
+	no teleportation takes place.
+	
+	.intevent{}
+	This is an object interrupt.  If present, it is always executed prior
+	to object events taking place.  Returning 1 in this event causes the
+	object event to be interrupted.
+	
+The interrupt events take precedence over all other events.  By default, they return 0 or if 0 is returned, the event is executed as normal.
+
+Room Events
+	If the object in question is a .room, room events are executed if not interrupted by .intmove
+
+Verb events
+	Verb events are only executed if a .verbevent{} is declared.  This event is launched if the event has not been interrupted (returned 0 from .intevent ).
+	In a verb event, the internal varialbe @lastaction or @lastverb will contain one of the verb constants.
+	
+@added @removed Events
+	If an object was added to or removed from a container, the objects event handler is called and
+	@added or @removed will contain the pointer of the container from which the object was removed or to which the object was added.
+	If @added or @remove are 0, then the object was not recently added or removed.
+	These events are only valid if an object is added via the add method, they do not run when
+	the Arayna script is still initializing and the object is spawned into a container using
+	the .spawn directive, since the events of the object have not yet been compiled.
+	they also do not execute when loading saved games.
+
+Object Events
+	If not interrupted, the object event is launched with the action verb.
+Note that at times, the object event may be called multiple times.  For example, if the verb @get was used on an object, the object event is called various times:
+
+1.	@removed - the object event is called with @removed containing the container from which the object was just removed.
+2. @added - the object event is calld with @added containing the container to which the object was just added
+3. @lastverb = the object event is called with the lastverb containing the last action performed on the object.  By this time both @added and @removed will be zero.
+
+Area Events
+	If the object in question is a .room, and the room has a defined area with a defined area event, then the area event is executed next.
+	
+Arayna Events
+	if the object in question is a .room, and there is a defined arayna event, that is executed next.
+
+
+
+[Instruction Reference]
+
+A list of arayna script instructions
+
+[arayna]
+
+	.arayna { }
+
+Informs arayna that this is an arayna script.  All instructions, objects, equasions must appear within an .arayna section.
+
+Legal instructions in Arayna section:
+
+	.label			defines the module name
+	.desc				defines an introduction to the module
+	.event			an event that is executed every turn
+	.intmove
+	.intevent
+	.showcontrols
+	.hidecontrols
+	.showcommands
+	.hidecommands
+	.section			
+	.define
+	.begin
+	.var
+	.const
+	
+See the respective instruction descriptions for more information.
+
+[showcontrols]
+
+	.showcontrols
+	
+Displays the navigation panel.  This is the default state.
+
+Legal in any run-time section
+
+See also:
+	.hidecontrols
+	
+
+[hidecontrols]
+
+	.hidecontrols
+	
+Hides the navigation panel.  Movement via the panel will not be available while the panel is hidden.
+
+Legal in any run-time section
+
+See also:
+	.showcontrols
+	
+[showcommands]
+
+	.showcommands
+	
+Displays the command list window.  This is the default state.
+
+Legal in any run-time section
+
+See also:
+	.hidecommands
+	
+[hidecommands]
+
+	.hidecommands
+	
+Hides the command list window.  Any declared command will not be available while the window is hidden.
+
+Legal in any run-time section
+
+See also:
+	.showcommands
+
+[id]
+
+	.id = n
+	
+Where n > 0
+
+Used to number objects that appear in the gameworld.  All objects must have a unique ID or there will be duplication errors.
+Room objects exist in their own name space so that there will be no collision between room objects and other objects of identical value.   
+
+[debug]
+
+	.debug
+	
+Legal in .arayna{} section
+
+Activates the 'Debug' menu.  The debug menu has options for teleporting to any legal room in the current module, for spawning defined objects and for listing rooms and objects currently declared.
+
+
+[label]
+
+	.label = <string>
+	
+Attaches a short string description to an object.
+When used in the .arayna section, it defines the name of the module.
+
+[desc]
+
+	.desc = <string>
+	
+Used for more comprehensive descriptions of an object, typically displayed when an object is "examined."
+When used in the .arayna section, it defines a description of the module, shown when the "About" menu is selected.
+
+[const]
+
+	.const {}
+	
+Provides a section for declaring constant labels.
+Labels have the format:
+	label = value
+	
+Constants may not be changed throughout the course of execution.  Constant values may contain integers, real numbers, records and strings.
+Records have the format:
+	record {}
+	
+Labels declared in the constant section may also take advantage of Araynas internal counter.  Any label followed immediately by a period '.' is equated with the current counter value and the counter is incremented by one.
+Labels with internal counter have the format:
+	label.
+
+eg:
+
+	.const {
+		one = 1
+		alsoone.
+		string = "string"
+		record {
+			one = 1.0
+		}
+		
+		@counter = 10
+		has10value.
+	}
+
+
+[var]
+
+	.var {}
+	
+Provides a section for declaring variant labels.
+Labels have the format:
+	label = value
+	
+Variants are variables that may be set to any supported value throughout execution of a script.  Variants may contain integers, real numbers, strings and records.
+Records have the format:
+	record {}
+	
+
+eg:
+
+	.var {
+		one = 1
+		string = "string"
+		record {
+			one = 1.0
+		}
+	}	
+
+[include]
+
+	.include <filename>
+
+<filename> must be a valid disk file.
+	
+Opens <filename> and continues processing the script in that file.  Once complete, control returns right beyond the include instruction and processing continues.
+
+[begin]
+
+	.begin {}
+	
+Begin defines the absolute section where the run-time of an arayna script begins.  Any script that does any sort of output requires a begin section at minimum.
+
+Legal instructions in a begin section:
+	Everything that appears in a normal section except .const and .var, also .return has no real use here.
+	See section for more information.
+
+[section]
+
+	.section <label> {}
+
+Sections declare separate areas of execution.  The instructions in sections are executed automatically when attached to events or explicitly from another section.
+Variants and constants declared in a section are local to that section only.  They may be accessed from other sections with the following format:
+
+<section label>.<variant label>
+
+eg:
+	.section dodad {
+		.var {
+			indodad = 0
+		}
+	}
+
+Sections may also return a value via the '.return n' instruction.
+
+Legal Instructions in a section:
+	expressions
+	.var
+	.const
+	.write
+	.if
+	.elseif
+	.else
+	.while
+	.forever
+	.break
+	.continue
+	.continueif
+	.return
+	.cls
+	.wait
+	.endgame
+	.teleport
+	.destroy
+	
+
+[cls]
+
+	.cls
+	
+Clears the output screen.
+
+[teleport]
+
+	.teleport( <room id> )
+
+<room id> must be a valid, declared room object.
+	
+Moves the player perspective to a room in standard mode.  This instruction is needed at least once to insert the player into the starting room. If may be used any number of successive times to teleport the player perspective to any location in the gameworld.
+A teleport involves updating @thisroom and @fromroom, room entry, movement interrupt event, room entry event, area event and game event.  The player position is moved to the room and the room description is displayed.  Movement counter is incremented.
+
+[move]
+
+	.move( <room id> )
+	
+<room id> must be a valid, declared room object.
+
+Moves the player perspective to a room in standard mode.  This is a stealth move.
+Unlike .teleport, there are no events executed and no room description is displayed.  Movement counter is not changed.
+
+@thisroom and @fromroom however are updated.
+ 
+
+[define]
+
+	.define {}
+	
+Provides a section for declaring gameworld objects.  Such objects may be rooms, areas, items a player may interact with, non-player characters, dialogs, etc.
+
+Legal instructions for a define section:
+
+	.area
+	.object
+	.container
+	.room
+	.dialog
+	.agent
+	.player
+	
+	
+
+[area]
+
+	.area {}
+	
+Legal in a .define {}.
+
+Areas are virtual locales for groups of rooms.  Each room must be attached to a particular area.
+Areas provide for event handling anytime a movement is made in any room of a particular area.
+
+Legal instructions for an area:
+
+	.id		*mandatory
+	.label
+	.event
+	
+[object]
+
+	.object {}
+	
+Legal in a .define {}
+
+An object is the basic tool for items that a player may interact with.  These may be things a player can pick up or manipulate in other ways.
+
+Instructions legal in an object section:
+
+	.id		*mandatory
+	.label
+	.desc
+	.verbs
+	.event
+	.key
+	.uses
+	.state
+	.stack
+	.charges
+	
+[container]
+
+	.container {}
+	
+Legal in a .define {}
+
+Similar to an object, a container may also contain other objects.  Note that the player, rooms and agents are also containers, but treated differently by the game engine.
+
+Instructions legal in a container section:
+
+	.id		*mandatory
+	.label
+	.desc
+	.verbs
+	.event
+	.key
+	.uses
+	.state
+	.stack
+	.charges
+
+[agent]
+
+	.agent {}
+	
+Legal in a .define {}
+
+Similar to a container.  Treated separately for game engine purposes.
+
+Instructions legal in an agent section:
+
+	.id		*mandatory
+	.label
+	.desc
+	.verbs
+	.event
+
+
+[player]
+
+	.player {}
+
+Legal in a .define {}
+
+Only one player object exists in the game.  This doesn't technicall define a new object, it changes the existing one.
+
+Instructions legal in a player section:
+
+	.label
+	.event
+	.spawn
+
+
+[room]
+
+	.room {}
+	
+Legal in a .define {}
+
+Defines a room.  Rooms exist in their own memory space so their id numbers may be shared by objects.  However, each room must have it's own unique id from other rooms.
+It is advisable to start rooms with an id of 1 since Arayna will allocate at least as much memory as necessary for id number of rooms.
+So if you start with room id 10000, Arayna will allocate memory for a minimum of 10000 rooms!
+
+Instructions legal in a room section:
+
+	.id		*mandatory
+	.area
+	.label
+	.desc
+	.event
+	.spawn
+	.exits
+	
+
+[dialog]
+
+	.dialog {}
+	
+.dialog {} legal in a .define {}
+
+When used in a define section, it allocates an object which can later be used in seting of dialog sets.
+
+Instructions legal in a .dialog {} section
+
+	.id	*mandatory
+	.label
+	.desc
+	.event
+	.activate
+	.deactivate
+	
+See also
+	.newdialog
+	.begindialog
+	.enddialog
+	.activate
+	.deactivate
+	
+[command]
+
+	.command {}
+	
+.command {} legal in a .define {}
+
+When used in a define section, it allocates an object which can later be used with .newcommands
+
+Instructions legal in a .command {} section
+
+	.id	*mandatory
+	.label
+	.desc
+	.event
+	
+See also
+	.newcommands
+
+[intmove]
+
+	.intmove {}
+
+Legal in an .arayna section
+
+Sets up a movement interrupt.  Normally, when a direction button is clicked, Arayna will load the room into appropriate internal variables, enter the room and launch any room events, if present.
+
+intmove is an optional instruction which allows setting up a general interrupt which is called after the room variables are loaded but before the actual move takes place.
+
+If an interrupt is used, it is important to tell Arayna how you want to deal with the results.  It is required to use .return n in this section where 'n' is either a zero or one.
+
+.return 1
+	informs Arayna to proceed as normal, enter the room and execute any events.
+
+.return 0
+	informs Arayna not to proceed as normal.  The room is not entered and events not executed.  However, if this return option is used, the player will end up in limbo and the game will crash.  It will be necessary to use the .teleport instruction to send the player to a valid room.  	
+
+	
+[intevent]
+
+	.intevent {}
+	
+Legal in an .arayna section
+
+Sets up an object action interrupt.  Normally when a verb is used on an object, Arayna may take certain automatic steps depending on the verb, then launch any events, if present.
+
+intevent is an optional instruction which allows setting up a general interrupt which is called after the action and object internal variables are loaded but before any automatic action or event is performed.
+
+If this interrupt is used, it is improtant to tell Arayna how you want to deal with the results.  It is required to use .return n in this section where 'n' is either a zero or one.
+
+.return 1
+	informs Arayna to proceed as normal.  Perform automatic functions and launch any events.
+	
+.return 0
+	informs Arayna not to proceed as normal.
+	
+
+[verbevent]
+
+	.verbevent {}
+	
+optional valid in .arayna section.
+an event called every time an action verb is used.
+this event is called after interrupts but before object events
+	
+	@lastaction or @lastverb will contain the @<verb> constant
+	@lastobject will contain the object being manipulated
+	
+
+[saveevent]
+
+	.saveevent {}
+	
+event called after the save menu item is selected
+saving stores the states of all objects, and inventories
+however, object type variants are not preserved since
+object addresses change from game to game.
+
+[loadevent]
+
+	.loadevent {}
+	
+event called after the load menu item is selected
+if the script relies on object addresses being stored in
+variants, here is a good place to update those variables
+
+[verbs]
+
+	.verbs( @<verb>, .. )
+	
+Defines which verbs may be performed on an object.  Verbs are internal variables accessed with the at sign '@'
+
+Currently supported verbs:
+
+standard verbs, these do not
+alter object states
+
+	@examine	@read
+	@attack
+	@search
+	@buy
+	@climb
+	@talk
+	@sell
+	@steal
+	@ask
+	@say
+	@sing
+	@turnleft
+	@turnright
+	@clean	
+	@get
+	@drop
+	@shoot
+	@swim
+	@press
+	@tie
+	@untie
+	@look
+	
+these verbs 'use' a charge in the object
+possibly destroying it if charges run out
+
+	@eat
+	@drink
+	@use
+
+these verbs set the object to @on state
+
+	@wear
+	@wield
+	@activate	
+
+these verbs set the object to @off state	
+
+	@remove
+	@unwield
+	@deactivate
+
+this verb sets the object to @open state
+
+	@open
+	
+this verb sets the object to @close state
+
+	@close
+
+this verb sets the object to @lock state
+
+	@lock
+
+this verb sets the object ot @unlock state
+
+	@unlock
+
+this verb sets the object to @break state
+
+	@break
+
+this verb sets the object to @fix state
+
+	@fix
+
+these verbs wait for click on an object
+and return it in @lastobject
+
+	@usewith
+	@useon
+	@combine
+	@target
+
+
+
+	Compound verbs also exist which are an easier
+	method of including many verbs with just one
+	variable.
+	
+	@general		get, drop, use, examine
+	@wearable	get, drop, wear, remove, examine
+	@wieldable	get, drop, wield, unwield, examine
+	@fooditem	get, drop, eax, examine
+	@drinkitem	get, drop, drink, examine
+	
+Note that some options won't always be available.  Arayna decides based on the objects current locale.
+For example, "get" will be available only if the object is in the room while "drop" will be available only if the object is in the player's inventory.
+Similarily, availability of some verbs depend on the object's state.  See .state for more informatin.
+
+@read and @examine are synonymous.
+
+[exits]
+
+	.exits( n, s, e, w, ne, nw, se, sw, u, d, .. )
+
+Legal in a .room section.
+
+Sets the 10 direction exits of a room.  Each of the directions must be a valid room id or a zero to signify no exit in that direction.
+At any time during the direction setting, you can use a double dot '..' to instruct Arayna to set the following directions to 0.
+
+Eg:
+	.exits( 10, .. )
+	
+This will set in the current room, one exit to the north that leads to room 10, all the other directions are zero.
+
+
+[charges]
+
+	.charges( <n charge>, <max charges> )
+	
+Charges may be used if you want Arayna to automatically keep track of an object's usage.
+If max charge is greater than zero, the object is preserved when the charges run out.
+If max charge is zero, the object is removed and destroyed when the charges run out.
+
+The current number of charges is displayed when the object is examined.
+
+
+[stack]
+
+	.stack = n
+	.stack = @unlimited
+	
+Sets the stackable state of an object.  If used, the object will be able to stack 'n' components in the inventory.
+For example, a 'money' object may have a stack limit of @unlimited, this will show up as the money object with a
+a number indicating how many of the object in the stack.
+
+Getting and dropping stacked objects will open a dialog asking how many to take or drop from the stack.
+If an object exceeds the stack value, the stack is split into a new object.
+
+
+[event]
+
+	.event eventID
+	.event eventID {}
+	.event {}
+	
+Events are special sections executed each time an action is performed on an object.  Actions are the verbs available to the object and performed when the user selects an action verb from the object's menu.
+
+The eventID must have a corresponding .section eventID {} elsewhere in the module.  Optionally, the section may be embedded right at the .event declaration site.  Everything legal in a normal section is legal in the embedded .event section.
+These events may also be called explicitly through an object function call, see section on function calls.
+
+The third syntax allows for nameless embedded events.  For nameless events, Arayna creates an internal name for the event and calls that when an event occurs.  The internal name of the event is "OBJ@<obj id>"  This is not needed unless it is desired to explicitly call a nameless event.  In such a case, it is advisable to use one of the named event syntax instead.
+
+[group]
+
+	.group( n )
+	
+Identifies object with group n.  The object group can later be retreived with <obj>.group syntax.
+This is identical to areas that are used with room objects.
+
+[state]
+
+	.state( @<state>, .. )
+	
+States describe the object condition using internal variables.  It could be on, off, open, closed, locked, borken, etc.
+
+Available states:
+	@open
+	@close
+	@lock
+	@unlock
+	@on
+	@off
+	@pull
+	@push
+	@break
+	@fix
+	@shop
+
+Some states are implied compound.  For example, using @lock will also perform @close by implication.
+ 
+
+[key]
+
+	.key = id
+	.uses = id
+	
+Determines another object which is implied with this object.  If the object is a container, the 'key' object is the object that locks and unlocks the container.
+
+
+[write]
+
+	.write( n, @nl, <expr>, .. )
+	
+Legal in runtime sections
+
+write outputs text to the main window.  It takes in any number of comma delimited parameters.
+
+Parameters may be variables, objects, object fields, constants, internal objects and @nl which is a special symbol for new line.
+
+[wait]
+
+	.wait
+	.wait( n )
+	
+Pauses the game.
+The first format waits for a mouse click to continue.
+They second format waits for n seconds.
+
+
+[endgame]
+
+	.endgame
+	
+Whereever encountered, this halts execution and frees all memory associated with the module.
+
+[if]
+
+	.if( <expr> ) {}
+	
+This is a conditional branching instruction.
+
+If the expression is true, the following section is executed.
+
+See also
+	.elseif
+	.else
+	
+[elseif]
+
+	.elseif( <expr> ) {}
+
+This is a conditional branching instruction.
+
+Following an .if or .elseif instruction, if the previous expression was false, tests the new expression.  Launches following section if true.
+
+
+See also
+	.if
+	.else
+	
+[else]
+
+	.else {}
+	
+This is a conditional branching instruction.
+Following an .if or .elseif instruction, if the previous expressions were all false, the following section is executed.
+
+See also
+	.if
+	.elseif
+	
+[while]
+
+	.while( <expr> ) {}
+	
+This is a conditional looping instruction.
+
+The following section loops as long as the expression returns true.
+If the expression is false to begin with, the section is not executed at all.
+
+See also
+	.continue
+	.continueif
+	.break
+	.breakif
+
+[forever]
+
+	.forever {}
+	
+This is an unconditional looping instruction.
+
+The following section is looped indefinitely.  The only way out is to use an explicit break.
+
+See also
+	.continue
+	.continueif
+	.break
+	.breakif
+
+[continue]
+
+	.continue
+	
+Legal only an a looping instruction.
+
+Instructs Arayna to return to the top of the loop ignoring the rest of the instructions in the loop section.
+
+See also:
+	.while
+	.forever
+	.continueif
+	.break
+	.breakif
+	
+[continueif]
+
+	.continueif( <expr> )
+	
+Legal only an a looping instruction.
+
+Instructs Arayna to return to the top of the loop ignoring the rest of the instructions in the loop section if the expression returns true.  Otherwise the rest of the instructions are executed.
+
+See also:
+	.while
+	.forever
+	.continue
+	.break
+	.breakif
+
+[break]
+
+	.break
+	
+Legal only an a looping instruction.
+
+At any point in the loop section, exits the loop unconditionally.
+
+See also:
+	.while
+	.forever
+	.continue
+	.continueif
+	.breakif
+
+[breakif]
+
+	.breakif( <expr> )
+	
+Legal only an a looping instruction.
+
+At any point in the loop section, exits the loop if the expression returns true.
+
+See also:
+	.while
+	.forever
+	.continue
+	.continueif
+	.break
+
+[new]
+
+	var = .new( id )
+	
+	returns object
+		
+Creates a new object with id.  Returns the object.
+This instruction can be embedded in expressions.
+
+[random]
+
+	var = .random( low, high )
+		
+	returns integer
+	
+Selects a random number between low and high, returns in var
+
+
+[getstring]
+
+	var = .getstring( "title" )
+	
+	returns string
+	
+Opens a dialog with title "title" and waits for string input from user.  String is returned in var
+
+
+[getnumber]
+
+	var = .getnumber( "title" )
+		
+	returns integer
+	
+Opens a dialog with title "title" and waits for number input from user.  Number is returned as integer in var
+		
+[openfile]
+
+	var = .openfile( "filename" )
+	
+	returns file object
+	
+Opens the file "filename" and returns the file object in var.  This object may further be used with file i/o functions read, write, save, close and output in .write
+
+
+[newfile]
+
+	var = .newfile()
+	
+	returns file object
+	
+Creates a new file object.  This object may further be used with file i/o functions read, write, save, close and output in .write
+This may also be used as a buffer that simulates a dynamic single dimension array. 
+
+[existsfile]
+
+	var = .existsfile( filename )
+	
+	returns true or false ( 1 or 0 )
+	
+If the file 'filename' exists, returns 1.  If 'filename' does not exist, returns 0.
+
+
+[destroy]
+
+	.destroy( <obj> )
+	
+Releases memory associated with an object.  This must be a previously spawned or created object.
+
+
+[newdialog]
+
+	.newdialog
+	.newdialog( id, .. )
+	
+Resets the topic list of to begin a new dialog set.  Dialog sets use .dialog objects to set up conversation trees.
+id must be a valid .dialog object.
+
+
+See also:
+	.begindialog
+	.enddialog
+	.dialog
+	.activate
+	.deactivate
+	
+[begindialog]
+
+	.begindialog
+	
+Sets the game in dialog mode.  This removes the command window, the room inventory window and replaces them with dialog topics previously created with .newdialog or .dialog and activated with .activate
+Each active topic in a dialog set is displayed in a list allowing the user to select topics.
+
+[enddialog]
+
+	.enddialog
+	
+Sets the game back into normal mode, restores command window and room inventory list and normal navigation may ensue.
+
+
+[activate]
+
+	.activate( <dialog id>, .. )
+
+Legal in runtime section and in .dialog {} section.
+	
+Adds topics to a dialog topic list.  If used in a .dialog{} section, topics are added only after a .deactivate instruction, if one is used.
+
+See also:
+	.dialog
+	.newdialog
+	.begindialog
+	.enddialog
+	.deactivate
+	
+[deactivate]
+
+	.deactivate( @all, <dialog id>, .. )
+	
+Legal in runtime sections adn in .dialog {} section.
+
+Removes topics from a dialog topic list.  If used in a .dialog{} section, it is executed before .activate instruction, if one is present.
+Also recognizes a special constant, @all which removes all topics from the current dialog set.
+
+See also:
+	.dialog
+	.newdialog
+	.begindialog
+	.enddialog
+	.activate
+
+[newcommands]
+	
+	.newcommands
+	.newcommands( id, id[] )
+
+Removes existing commands from the command window.  If the 2nd form is used, new commands are added to the command window.
+
+Valid in any runtime section.
+
+See also:
+	.command
+	
+[addcommands]
+
+	.addcommands( id, id[] )
+
+Legal in arayna run-time and .command section
+	
+Adds commands to the current command list.  This may be used in an arayna run-time section or a .command{} object.
+If used in a .command{} object, it is processed after any existing .removecommands instructions.
+
+
+See Also
+	.newcommands
+	.removecommands
+
+
+[removecommands]
+
+	.removecommands( id, id[] )
+	
+Legal in arayna run-time and .command section
+
+Removes commands from the current command list.  If used in a .command section, it is processes before any existing .addcommands instruction.
+Also recognizes a special constant, @all which removes all commands from the current command set.
+
+[Function Reference]
+
+	A list of Arayna object functions.  These differ from the regular instructions in that they are methods of objects.
+	
+
+[fverbs]
+
+	<obj>.verbs( @<verb>, .. )
+	
+<obj> is a valid object
+
+Serves the same function as .verbs() instruction used during object definition.  This allows a run-time change of an object'ss verbs.
+
+
+[fstate]
+
+	<obj>.state( @<state>, .. )
+	
+<obj> is a valid object
+
+Serves the same function as the .state instruction used during object definition.  This allows a run-time change of an objecct's state.
+
+
+[fisstate]
+
+	<obj>.isstate( @<state> )
+	
+<obj> is a valid object
+
+Returns true if object state is @<state>
+
+[fexit]
+
+	<room>.exit( @<dir>, <room> )
+	<room>.exit( @<dir>, <room id> )
+	<room>.exit( @<dir>, 0 )
+	
+<room> is a valid room object
+
+Allows run-time alteration of room exits.
+
+@<dir> must be a valid direction internal constant.
+
+DIRECTIONS
+	@north
+	@south
+	@east
+	@west
+	@up
+	@down
+	@northeast
+	@northwest
+	@southeeast
+	@southwest
+
+The destination <room> must also be a valid room object or a room id.
+If the destination is a zero, the direction is set to zero, removing any previous link in that direction.
+
+
+[fhas]
+
+	var = <container>.has( id )
+		
+<container> must be a valid container type object; container, room, agent, @player, etc.
+id must be a defined object id
+
+Checks the container's inventory for an object with matching id.  If found, it will return that object, otherwise zero will be returned.
+
+
+[fevent]
+
+	<obj>.event()
+	
+<obj> must be a valid object
+
+Runs the event associated with that object, if there exists one.
+
+[fadd]
+
+	<container>.add( <obj> )
+	
+<container> must be a valid container type object; container, room, agent, @player.
+<obj> must be a valid object
+
+Adds the object <obj> to the container's inventory.  Note that <obj> must have been previously created or removed from elsewhere.
+
+To create a new object on the spot, the .new instruction may be embedded:
+
+<container>.add( .new( id ) )
+
+
+[fremove]
+
+	var = <container>.remove( id )
+	
+<container> must be a valid container type object; container, room, agent, @player
+
+Removes from a container's inventory any one object matching the id, returns that object.  Returns zero if object doesn't exist in inventory.
+
+
+[finv]
+
+	<container>.inv { }
+	
+<container> must be a valid container type object; cointainer, room, agent, @player
+
+Loops through the contents of a container's inventory, returning each object in @lastobject.  The last object returned, or if the container is empty, @lastobject.id will equal zero.
+Standard loop functions apply, .break, .breakif, .continue, .continueif
+
+After the completion of the loop, @lastobject will be restored to its original value before the loop.
+
+[fwrite]
+
+	<obj>.write( <expr>, <expr>[] )
+	
+Legal in Arayna runtime section.
+
+<obj> must be a file object previously opened with .openfile or .newfile
+
+Writes to an open file object, <expr> may be any valid arayna expression consisting of strings, integers and real values.  No other type is supported for writing to file.
+Saving is not automatic, to save the file to disc, use the save function.
+When complete, file should be closed using the close function.
+
+See also:
+	.newfile
+	.openfile
+	<obj>.read
+	<obj>.close
+	<obj>.save
+	<obj>.seek
+
+	
+[fread]
+
+	<obj>.read( variant, variant[] )
+
+Legal in Arayna runtime section.
+
+<obj> must be a file object previously opened with .openfile or .newfile
+
+Reads a file and loads variants with each object in the same order in which it was written to file.
+When complete, file should be closed using the close function. 
+
+See also:
+	.newfile
+	.openfile
+	<obj>.write
+	<obj>.close
+	<obj>.save
+	<obj>.seek
+
+
+[fsave]
+
+	<obj>.save( "filename" )
+	
+Legal in Arayna runtime section.
+
+<obj> must be a file object previously opened with .openfile or .newfile
+
+Saves the contents of the file object to a file.  Filename is specified as a string.
+
+See also:
+	.newfile
+	.openfile
+	<obj>.write
+	<obj>.read
+	<obj>.close
+	<obj>.seek
+
+[fclose]
+
+	<obj>.close()
+	
+Legal in Arayna runtime section.
+
+<obj> must be a file object previously opened with .openfile or .newfile
+
+Closes the file and frees memory associated with it.
+
+See also:
+	.newfile
+	.openfile
+	<obj>.write
+	<obj>.read
+	<obj>.save
+	<obj>.seek
+
+[fseek]
+
+	<obj>.seek( index )
+	
+Legal in Arayna runtime section.
+
+<obj> must be a file object previously opened with .openfile or .newfile
+index is 0-based line-index into the file object, 0 = 1st line
+Each line in a file object represents 1 item
+
+Seeks the file object index cursor to the specified line index.  All further reading and writing will occur at that index.
+
+See also:
+	.newfile
+	.openfile
+	<obj>.write
+	<obj>.read
+	<obj>.save
+	<obj>.close
+
+
+[Internal Variables]
+
+	Arayan has various internal variables and constants for easy access to the internal mechanism and declared objects.  All such internal variables and constants begin with '@' atsign.
+Here is an exhaustive list of all the available
+
+@moves
+	keeps track of the total number of moves made or attempted by the player
+	May be changed like a normal variant.
+	
+@unlimited
+	A constant used by some definitions.  Signifies an unlimited amount of an item.
+	
+@player
+	this is the player object.  May be used like any object.
+	this contains the player name (if any) and player inventory.
+	
+@area
+	this is an object of the current area.
+	Contains the area id, label and event.
+	
+@arayna
+	this returns the main arayna object.  this contains the module
+	name, module description and root event.
+	
+@fromroom
+	this will contain the previous room object which is the room the player
+	came from before entering the current room.  May be zero if this is the very first room.
+	contains id, label, description, event
+
+@thisroom
+	this is an object of the current room which the player occupies.
+	contains id, label, description, event
+
+@lastaction, @lastverb
+	these are synonymous.
+	an integer which contains the last action performed by the player
+	
+@lastobject
+	the most recent object that the player manipulated by an action.
+	may contain zero.
+	
+@this
+	valid in event sections, this will contain the object of the current
+	executing event.
+	
+<room> = @room.id
+	this is used to retreive a defined room object.  Not useful by itself,
+	it	requires an id of a room to be retreived.  Returns the room object.
+	
+@counter
+	valid only in a .const section.  This keeps track of constant valuation
+	automation.  The use of it is optional, may be reset here to any initial
+	value.
+	
+@added
+	if an object has just been added to the inventory of any container, this
+	variable will contain the object pointer of that container.
+	in event terms, this event is run after the interrupt and verbevent,
+	but before the object event.
+	 
+
+@removed
+	if an object has just been removed from the inventory of any container,
+	this variable will contain the object pointer of that container.
+	in event terms, this event is run after the interrupt and verbevent,
+	but before the object event.
+
+@nl
+	used in .write directive to insert new line.
+	
+[Update Log]
+
+0.95.00
+	halted event execution during game loads.
+
+0.90.00
+	restructuring complete
+
+0.50.00+
+	Restructuring begins

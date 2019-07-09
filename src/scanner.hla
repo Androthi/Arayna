@@ -1,0 +1,603 @@
+unit scannerunit;
+	
+	#include ("src/arayna.hhf")
+	?@nodisplay := true;
+
+proc
+	
+	getID		:procedure( src:dword in esi ) {@noframe};
+	begin getID;
+		USE (EDI, ECX);
+		genLex (esi);
+		if (eax = gen_id) then
+			clc();
+		else
+			showerror( "Expecting an identifier" );
+		endif;
+		ENDUSE;
+		ret();
+	end getID;
+
+	stringToBuffer	:procedure( startID:dword in edi; endID:dword in esi );
+	
+		// quoted string in edi..esi, copy contents to string buffer.
+	
+	begin stringToBuffer;
+	
+		//dbg.put( "stringToBuffer" );	
+		USE (ESI, EDI, ECX, EBX);
+		mov( startID, ecx );
+		mov( endID, ebx );
+		sub( 1, ebx );	// endID includes '"', we don't want that
+		sub( ecx, ebx );		// ecx = start, ebx = num bytes
+		strconst.insertbytes( ecx, ebx );
+		ENDUSE;
+		//dbg.put( "/stringToBuffer" );
+	
+	end stringToBuffer;
+
+
+
+procedure ExtractNumber; @noframe;
+begin ExtractNumber;
+USE (ESI, EDX);
+	mov (genID, esi);
+	mov (esi, edi);
+	dec (edi);
+	FindEON:
+		inc (edi);
+		mov( [edi], al );
+		if (al = '.') then
+			mov (0, (type byte [edi]));
+			sub (esi, edi);
+			mov (edi, (type str.strRec[esi]).length);
+			
+			try
+				conv.strTou32(genID,0);
+				
+			anyexception
+				xor (eax, eax);
+			endtry;
+			jmp ret1;
+		endif;
+		
+		cmp( al, '0' );
+		jb ret0;
+		cmp( al, '9' );
+		jb FindEON;
+
+	ret0:
+		xor (eax, eax);
+		
+	ret1:
+ENDUSE;	
+	ret();
+end ExtractNumber;
+
+procedure loadString( var attrsrc:attr_t; dst:string );
+// simple procedure to looks for a quotes string constant or multiple lines
+// of quotes strings, combines them into single string in eax, string must be freed.
+begin loadString;
+	// need to preserve all since genLex pretty much screws all registers
+	//dbg.put ("//loadString");
+USE (EBX, ESI, EDI, ECX, EDX, EAX);
+	push (genLine);	// this should not alter genLine
+	push (genEOF);
+	mov (-1, genEOF);
+	mov (attrsrc, eax);
+	if( eax ) then
+		if( attreax.atype = type_strconst ) then
+			
+			mov( attreax.id, esi );
+			getString (esi);
+			if( @nc ) then
+				strconst.toString( dst );
+				clc();
+			endif;
+			
+		elseif( attreax.atype = type_string ) then
+			
+			str.cpy( attreax.id, dst );
+			clc();
+			
+		else
+			jmp nullstr;
+			//showerror( "loadString used with non-string object" );
+			
+		endif;
+			
+	else
+		nullstr:
+		str.cpy( "", dst );
+		clc();
+		
+	endif;
+	
+	pop (genEOF);	
+	pop (genLine);
+ENDUSE;
+//dbg.put ("///loadString");
+end loadString;
+
+
+procedure getString (src:dword in esi);
+	
+	// starting at ESI, get a quoted string
+	// we can either have a quoted string constant
+	// in which case tBuffer strconst will be loaded with the value and gen_strconst returned
+	// or we could have a constant or variant symbol
+		
+begin getString;
+USE (EDI);
+	//dbg.enters ("getString");	
+	genLex (esi);
+	if (eax = gen_id) then
+		tableLookup (genID);			jc error;
+		cmp (eax, gen_strconst);	jne error;
+		clc();
+	
+	elseif( eax = gen_strconst ) then
+		USE( ESI, EDI );
+		strconst.erase();
+		ENDUSE;
+		stringToBuffer( edi, esi );
+		forever
+	
+			peek( esi );
+			breakif( eax != gen_strconst );
+			genLex( esi );
+			USE( ESI, EDI );
+			strconst.insert( nl );
+			ENDUSE;
+			stringToBuffer( edi, esi );
+			
+		endfor;
+		mov( gen_strconst, eax );
+		clc();
+		
+	else
+		error:
+		showerror ("Expecting a string constant");
+	endif;
+	//dbg.exits ("getString");
+ENDUSE;
+end getString;
+
+procedure getEasyDirective (src:dword in esi); @noframe;
+begin getEasyDirective;
+	genLex (esi);
+	if (eax = gen_period) then
+		checkCommand( esi );
+		cmp (ebx, cmd_tc);
+		jne notcommand;
+	else
+		notcommand:
+		xor (eax, eax);
+	endif;
+	ret();	
+end getEasyDirective;
+
+procedure getDirection( src:dword in esi ); @noframe;
+begin getDirection;
+	genLex( esi );
+	if( eax = gen_atsign ) then
+		checkDirection( esi );
+		cmp( ebx, direction_tc );
+		jne notdirection;
+	else
+		notdirection:
+		showerror( "Expecting a direction keyword" );
+	endif;
+	ret();
+end getDirection;
+
+
+procedure getCommand (src:dword in esi); @noframe;
+begin getCommand;
+	checkCommand( esi );
+	if (ebx != cmd_tc) then
+		showerror ("Expecting a command directive '.'");
+	else
+		clc();
+	endif;
+	ret();
+end getCommand;
+
+
+procedure getDirective (src:dword in esi); @noframe;
+begin getDirective;
+	genLex (esi);
+	if (eax = gen_period) then
+		getCommand( esi );
+	else
+		showerror ("Expecting a command directive '.'");
+	endif;
+	ret();
+end getDirective;
+
+procedure getSectionDirective( src:dword in esi ); @noframe;
+begin getSectionDirective;
+	genLex (esi);
+	if (eax = gen_period) then
+		getCommand( esi );
+	
+	elseif( eax = gen_rbrace ) then
+		xor( eax, eax );
+		clc();
+	else
+		showerror ("Expecting a command directive '.'");
+	endif;
+	ret();
+	
+end getSectionDirective;
+
+
+procedure getColon (src:dword in esi); @noframe;
+	// processes the next ':'
+begin getColon;
+USE (EDI, ECX);
+	genLex (esi);
+	if (eax <> gen_colon) then
+		showerror ("expecting colon ':'");
+		stc();
+	else
+		clc();
+	endif;
+ENDUSE;
+ret();
+end getColon;
+
+
+procedure getLeftBrace (src:dword in esi); @noframe;
+	// processes the next '{'
+begin getLeftBrace;
+USE (EDI, ECX);
+	genLex (esi);
+	if (eax <> gen_lbrace) then
+		showerror ("Expecting Left Brace '{'");
+		stc();
+	else
+		clc();
+	endif;
+ENDUSE;
+	ret();
+end getLeftBrace;
+
+
+procedure getRightBrace(src:dword in esi); @noframe;
+	
+begin getRightBrace;
+USE (EDI, ECX);
+	genLex (esi);
+	if (eax <> gen_rbrace) then
+		showerror ("Expecting Right Brace '}'");
+		stc();
+	else
+		clc();
+	endif;
+ENDUSE;
+	ret();	
+end getRightBrace;
+
+
+procedure getLeftParen(src:dword in esi); @noframe;
+begin getLeftParen;
+USE (EDI, ECX);
+	genLex (esi);
+	if (eax <> gen_lparen) then
+		showerror ("Expecting Left Parenthesis '('");
+		stc();
+	else
+		clc();
+	endif;
+ENDUSE;
+	ret();
+end getLeftParen;
+
+
+procedure getRightParen(src:dword in esi); @noframe;
+begin getRightParen;
+USE (EDI, ECX);
+	genLex (esi);
+	if (eax <> gen_rparen) then
+		showerror ("Expecting Right Parenthesis ')'");
+		stc();
+	else
+		clc();
+	endif;
+ENDUSE;
+	ret();
+end getRightParen;
+
+procedure getEqual (src:dword in esi); @noframe;
+	// grab an = next in the source
+begin getEqual;
+USE (EDI, ECX);
+	genLex (esi);
+	if (eax <> gen_equal) then
+		showerror ("expecting an equal '='");
+	else
+		clc();
+	endif;
+ENDUSE;
+	ret();
+end getEqual;
+
+
+procedure getComma (src:dword in esi); @noframe;
+	// get a comma
+begin getComma;
+USE (EDI, ECX);
+	genLex (esi);
+	if (eax <> gen_comma) then
+		showerror ("Expecting a comma ','");
+	else
+		clc(); 
+	endif;
+ENDUSE;
+	ret();
+end getComma;
+
+procedure getLeftBracket (src:dword in esi); @noframe;
+begin getLeftBracket;
+USE (EDI, ECX);
+	genLex (esi);
+	if (eax <> gen_lbracket) then
+		showerror ("Expecting a left bracket '['");
+	else
+		clc(); 
+	endif;
+ENDUSE;
+	ret();	
+end getLeftBracket;
+
+procedure getRightBracket (src:dword in esi); @noframe;
+begin getRightBracket;
+USE (EDI, ECX);
+	genLex (esi);
+	if (eax <> gen_rbracket) then
+		showerror ("Expecting a right brackte ']'");
+	else
+		clc(); 
+	endif;
+ENDUSE;
+	ret();		
+end getRightBracket;
+
+
+procedure getObjectID (src:dword in esi); @noframe;
+	// gets the next possitive number, or error
+begin getObjectID;
+
+	getNumber( esi );	jc done;
+	if( eax = 0 ) then
+		showerror("Not a valid object, id must be greater than 0");
+	else
+		clc();
+	endif;
+	done:
+	ret();
+end getObjectID;
+
+procedure getUnsigned( src:dword in esi ); @noframe;
+begin getUnsigned;
+	
+	getNumber( esi ); jc done;
+	if( eax = 0 ) then
+		showerror("Expecting an unsigned number greater than zero" );
+	else
+		clc();
+	endif;
+	done:
+	ret();
+end getUnsigned;
+
+
+procedure getNumber (src:dword in esi);
+	// gets the next number, any
+	// also returns the number in EAX
+	var
+		attr	:attr_t;
+		
+	
+begin getNumber;
+
+	zeroAttr( attr );
+	expr( attr );		jc done;
+	if( attr.atype = type_int ) then
+		mov( attr.id, eax );
+		mov( eax, genNumber );
+		clc();
+	else
+		freeAttr( attr );
+		showerror( "Expecting a number" );
+	endif;
+	done:
+end getNumber;
+
+procedure getVariable (src:dword in esi); @noframe;
+begin getVariable;
+USE (EDI, ECX);
+	genLex (esi);
+	if( eax != gen_id ) then
+		genExtract();
+	endif;
+	
+	if (eax = gen_id) then
+		
+		tableLookup (genID);
+		if (eax = gen_variant) then
+			clc();
+		else
+			error:
+			showerror ("Expecting a local or global variable");
+		endif;
+	elseif (eax = gen_atsign) then
+		getAction ( battr );
+		jc error;
+		move (&battr, id_attr);
+
+	endif;
+ENDUSE;
+ret();
+end getVariable;
+
+procedure getDot( src:dword in esi ); @noframe;
+begin getDot;
+USE( EDI, ECX );
+	genLex( esi );
+	if( eax != gen_period ) then
+		showerror( "Expecting a dot '.'" );
+	else
+		clc();
+	endif;
+ENDUSE;
+ret();
+end getDot;
+
+
+procedure findNext ( tofind:dword; nestwith:dword);
+	var
+		nest	:dword;
+		curline	:uns32;
+	
+begin findNext;
+
+	mov (1, nest);
+	move (genLine, curline);
+	
+	forever
+		genLex (esi);
+		if (eax = nestwith) then
+			inc (nest);
+			
+		elseif (eax = tofind) then
+			dec (nest);
+			breakif (@z);
+			
+		elseif (eax = gen_error) then
+			mov (filenode, ebx);
+			showerror ("unexpected error while processing ", filenodeebx.filename, ", near line ", curline);
+			break;
+	
+		elseif (eax = gen_eof) then
+			mov (filenode, ebx);
+			showerror ("unexpected eof while processing ",  filenodeebx.filename, ", near line ", curline);
+			break;
+		endif;
+	endfor;
+end findNext;
+
+
+/*
+procedure getCoords ( src:dword in esi);
+//
+//	source in ESI
+//	points to a genLexeme in the form of [x, y]
+//	
+//	parse x, y coords and return in:
+//	EAX		x value
+//	EBX		y value
+//	
+//	ESI points beyond closing bracket
+
+	var
+		x	:uns32;
+		y	:uns32;
+	endvar;
+	
+begin getCoords;
+
+	genLex (esi);
+	if ( dl <> '[' ) then
+		showerror ("Expecting '[' after .size");
+		exit getCoords;
+	endif;
+
+	inc (esi);
+	genLex (esi);
+	if (eax = gen_number ) then
+		
+		if ( genNumber > 0 ) then
+			mov (genNumber, x);
+		else
+			jmp f_(1);
+		endif;
+	else
+		l_(1):
+			showerror ("Expecting a decimal greater than zero");
+			exit getCoords;
+	endif;
+	
+	genLex (esi);
+	if (dl <> ',' ) then
+		showerror ("missing comma");
+		exit getCoords;
+	endif;
+
+	inc (esi);	
+	genLex (esi);
+	if (eax = gen_number ) then
+		
+		if ( genNumber > 0 ) then
+			mov (genNumber, y);
+		else
+			jmp f_(1);
+		endif;
+	else
+		l_(1):
+			showerror ("Expecting a decimal greater than zero");
+			exit getCoords;
+	endif;
+	
+	genLex (esi);
+	if (dl <> ']') then
+		showerror ("Expecting ']'");
+		exit getCoords;
+	endif;
+	inc (esi);
+
+	mov (x, eax);
+	mov (y, ebx);
+	
+end getCoords;
+*/
+
+
+/*
+procedure getDecConst( src:dword in esi);	@noframe;
+
+	//	ESI:	pointer to a string of digits
+	//	adapted from code by Randall Hyde
+	
+begin getDecConst;
+
+	if (esi >= genEOF) then
+		stc;
+		ret();	
+	endif;
+	
+	mov ([esi], al);
+	if (al not in '0'..'9') then
+		stc;
+		ret();
+	endif;
+	
+	call getID;
+	try
+
+		conv.strTou32 (genID, 0);
+		mov (eax, genNumber);
+		clc();
+		
+	anyexception
+		stc();
+
+	endtry;
+	
+	ret();	
+	
+end getDecConst;
+*/
+
+end scannerunit;

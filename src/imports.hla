@@ -1,0 +1,99 @@
+unit importunit;
+	#include ("arayna.hhf")
+	// all imports go here for convenience
+
+static
+align(4);
+
+	buf				:byte[100];
+	internal_counter	:uns32 := 1;
+
+	err					:boolean := false;
+align(4);
+
+	comp_fooditem	:lword := 1<<act_get | 1<<act_drop | 1<<act_eat | 1<<act_trade |1<<act_examine;
+	comp_drinkitem	:lword := 1<<act_get | 1<<act_drop | 1<<act_drink | 1<<act_trade | 1<<act_examine;
+	comp_general		:lword := 1<<act_get | 1<<act_drop | 1<<act_use | 1<<act_trade | 1<<act_examine;
+	comp_wearable	:lword := 1<<act_get | 1<<act_drop | 1<<act_wear | 1<<act_remove | 1<<act_trade | 1<<act_examine;
+	comp_wieldable :lword := 1<<act_get | 1<<act_drop | 1<<act_wield | 1<<act_unwield | 1<<act_trade | 1<<act_examine;
+
+align(4);
+
+storage
+	align(4);
+	hdll			:dword;
+	haccel		:dword;			// accelerator handle
+	//hhook			:dword;			// handle of keyboard hook
+	
+	// navigation bar handles
+	hnorth		:dword;
+	hsouth		:dword;
+	heast			:dword;
+	hwest			:dword;
+	hnortheast	:dword;
+	hnorthwest	:dword;
+	hsoutheast	:dword;
+	hsouthwest	:dword;
+	hup			:dword;
+	hdown			:dword;
+	hinv			:dword;
+	hlistcmd		:dword;
+	oldcmdwind	:dword;
+	main_menu	:dword;
+
+
+	hlistinv		:dword;	// handle for inv list box	
+	hwndinv		:dword;
+	config		:tConfig;
+	history		:tBuffer;
+	
+	wc				:w.WNDCLASSEX;	// window class structure
+	msg			:w.MSG;			// message record
+	curItem		:dword;
+	logfont		:w.LOGFONT;
+	hfont			:dword;
+	cf				:w.CHOOSEFONT;
+	
+	hedit			:dword;	// handle for main edit window
+	hlistdisp			:dword;	// handle for display edit window
+	hinfo			:dword; // handle for info display on top
+	htoolwind			:dword;		// handle for navigation window
+	hmenu			:dword;		// tracked menu
+	pt				:w.POINT;
+	ini			:arayna_ini;
+	symbol_tbl			:pointer to table;	// contains all globals, locals and consts
+
+	game					:game_t;
+	gamesect				:string;
+
+	id_attr				:pointer to attr_t;	// if a const or global encountered, this will contain a pointer to attr_t structure
+	battr					:attr_t;
+	return_attr			:attr_t;					// filled out return attribute		
+	id_attrib			:dword[4]; //lword;
+	id_comp				:dword[4];	// for compound attributes
+	return		:dword;	// used for return value for various dialogs
+	hinst			:dword;			// instance handle
+	BOF					:pChar;
+
+	fileList	:arayna_fileList;
+	strconst	:tBuffer;
+
+
+	hwnd				:dword;			// main window handle
+	strbuf				:string;
+	buffer_str		:string;
+	//filename			:string;
+	filenode			:pointer to arayna_fileNode;
+	includeSP			:int32;
+	
+	openmod		:boolean;
+	showcontrols	:boolean;	// show status of navigation window
+	showcommands	:boolean;
+	align(4);
+
+static
+	sep	:string := "===========================================";
+
+	
+	
+end importunit;

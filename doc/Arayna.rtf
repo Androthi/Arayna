@@ -1,0 +1,2258 @@
+{\rtf1\ansi\deff0{\fonttbl{\f0\fnil\fcharset0 Courier New;}}
+\viewkind4\ucl\pard\lang1033\b\fs28 Arayna:\b0\fs20\par
+Author=Sevag Krikorian\par
+Version=0.94.20\par
+Created=Jan 19,2007\par
+Modified=May 21,2010\par
+Licence=Public Domain\par
+\par
+\par
+\b\fs28 Contents: \b0\fs20\par
+Arayna\par
+The Arayna Language\par
+.Modes\par
+.Basic Concepts\par
+..Comments\par
+..Script Format\par
+..Instructions\par
+..Variables and constants\par
+..Expression Evaluation\par
+Learning the Language\par
+.Tutorial\par
+.Events\par
+..Event Order\par
+Instruction Reference\par
+.arayna\par
+.showcontrols\par
+.hidecontrols\par
+.showcommands\par
+.hidecommands\par
+.debug\par
+.label\par
+.desc\par
+.const\par
+.var\par
+.include\par
+.begin\par
+.section\par
+.intmove\par
+.intevent\par
+.verbevent\par
+.saveevent\par
+.loadevent\par
+.define\par
+.area\par
+.id\par
+.object\par
+.container\par
+.agent\par
+.player\par
+.room\par
+.verbs\par
+.exits\par
+.dialog\par
+.command\par
+.verbs\par
+.charges\par
+.stack\par
+.event\par
+.state\par
+.group\par
+.key = key\par
+.key = uses\par
+.teleport\par
+.move\par
+.write\par
+.cls\par
+.wait\par
+.endgame\par
+.if\par
+.elseif\par
+.else\par
+.while\par
+.forever\par
+.breakif\par
+.break\par
+.continue\par
+.continueif\par
+.new\par
+.random\par
+.getstring\par
+.getnumber\par
+.openfile\par
+.newfile\par
+.existsfile\par
+.destroy\par
+.newdialog\par
+.begindialog\par
+.enddialog\par
+.activate\par
+.deactivate\par
+.newcommands\par
+.addcommands\par
+.removecommands\par
+Function Reference\par
+.fverbs = verbs\par
+.fstate = state\par
+.fisstate = isstate\par
+.fexit = exit\par
+.fhas = has\par
+.fevent = event\par
+.fadd = add\par
+.finv = inv\par
+.fremove = remove\par
+.fwrite = write\par
+.fread = read\par
+.fsave = save\par
+.fclose = close\par
+.fseek = seek\par
+Internal Variables\par
+Update Log\par
+\par
+\par
+\b\fs28 Arayna:\b0\fs20\par
+\par
+Arayna is a GUI based Game Engine that processes modules written in an interpreted language.  The engine supports text-based interactive fiction games.\par
+\par
+\par
+\par
+\b\fs28 The Arayna Language:\b0\fs20\par
+\par
+The Arayna Language contains some basic concepts from interpreted programming languages.  Knowledge of programming is not required for writing Arayna scripts.  However, some programming knowledge does help in designing more advanced modules.\par
+\par
+\par
+\b\fs28 Modes:\b0\fs20\par
+\par
+There are basically two modes of operation.  Standard and dialog.  Standard mode takes place in 'room' modules where navigation is allowed via a navigation panel.  In dialog mode, the navigation panel is replaced by a list of commands that can be executed by the player.\par
+\par
+In Standard mode, gameplay begins with a ".teleport( someroom )" instruction.\par
+Arayna checks for the room, displays any description of the room, checks for exits out of the room and updates the navigation panel.  If there are objects in the room, a list of objects is created and listed.  Arayna then checks to see if there is a special ".event" associated with this room, if so, the event section is executed.\par
+Gameplay continues navigating through the 'rooms' and ends when an ".endgame" instruction is incountered.\par
+\par
+In Dialog mode, gameplay begins with a ".begindialog" instruction.  Arayna searches through a list of currently active dialog objects and displays them for the player to choose.  Each dialog may have a description, if so, it is displayed.  Dialogs may also have an ".event" associated which is exectued promptly.\par
+Dialog mode ends when an ".enddialog" instruction is encountered, after which, the game is restored to "Standard" mode and continues from there.\par
+ \par
+\par
+\b\fs28 Basic Concepts:\b0\fs20\par
+\par
+Arayna is capable of some basic math functions on integers and floating point variables.\par
+\par
+Arayna scripts are a series of instructions and math operations.\par
+\par
+Arayna instructions all begin with a dot '.' character.  Arayna internal variables and objects all begin with an at sign '@'\par
+\par
+Instructions may have further functions, see individual instructions for more information.\par
+\par
+Legal labels must all begin with an alpha character 'a..z' but may contain alphanumeric characters after the first 'a..z', '0..9'\par
+\par
+\par
+\b\fs28 Comments:\b0\fs20\par
+\par
+Comments allow writing information in a module script that will be ignored by the compiler.  There are two kinds of comments.\par
+\par
+Line Comments.  A double slash indicates everything following the double slash to the end of the is ignored by the compiler.\par
+\par
+// this is a line comment.\par
+\par
+Block Comments are used to have the compiler ignore blocks (or many lines) of text.  Use '/*' to begin a block and '*/' to end a block. \par
+\par
+/*\par
+	This is a block\par
+	of comments.\par
+*/\par
+\par
+\par
+\par
+\par
+\par
+\b\fs28 Script Format:\b0\fs20\par
+\par
+All arayna scripts begin with an .arayna\{\} where a series of instructions are encapsulated in braces.\par
+\par
+.arayna \{\par
+\par
+	// other instructions\par
+	// objects and execution code\par
+\par
+	.begin \{\par
+	\par
+		// execution begins here\par
+	\par
+	\}\par
+\par
+\}\par
+\par
+\par
+The script engine reads the instrcutions which tell arayna how to setup the objects in the game world.  Once the initial setup is done, arayna enters the default 'section' which is a .begin\{\} instruction where initial execution begins.  These are the bare minimum required by a script.\par
+\par
+For general purposes, anything within opening and closing braces '\{' and '\}' are considered 'sections'\par
+.arayna and .begin are general purpose sections.  Specific sections may also be declared with the .section id\{\} instruction.\par
+\par
+.section sectionName \{\par
+\par
+	// anything legal in a section may go here\par
+\par
+\}\par
+\par
+Such sections may be called implicitly or automatically via events, described later.  When called, execution transferes to that section and returns to the point of the call once the section is done.\par
+\par
+\par
+\par
+\b\fs28 Instructions:\b0\fs20\par
+\par
+Instructions are built-in keywords and functions that Arayna recognizes and processes.  All such Instructions begin with a period character '.' followed by the Instruction name.  Typically, instruction will have a special syntax.\par
+A comprehensive list of instructions is in the "Instruction Reference" section.\par
+\par
+Some sample directives:\par
+\par
+.include "somefile.txt"  // open "somefile.txt" and continue processing\par
+.section someSection \{\par
+\par
+	// this is a section\par
+	\par
+\}\par
+\par
+\par
+\par
+\b\fs28 Variables and constants:\b0\fs20\par
+\par
+There are two kinds of symbolic representation in arayna, variants and constants.  The only difference between the two is that variants may be changed while constants may not.\par
+Both may contain objects, integers, floating point, records and strings\par
+\par
+Variants are declared in a .var\{\} section\par
+Constants are declared in a .const\{\} section\par
+\par
+When declared in an .arayna\{\} section, the scope of the labels are global, they may be accessed anywhere with one limitation.  During initialization, if labels are used, they must be declared prior to the point of their usage.  This limitation is not present for execution sections however since execution begins only after the entire script is read into memory.\par
+\par
+In the examples below, I will use .const sections, keep in mind that everything legal in a .const section, with the exclusion of one thing described below is also legal in a .var section.\par
+\par
+.const \{\par
+\par
+	// begins a const section\par
+	\par
+	// a declaration of an integer label\par
+	one = 1\par
+	\par
+	// a declaration of a floating point label\par
+	float = 1.1\par
+\par
+	// a declaration of a string\par
+	string = "this is a string\par
+\par
+	// strings may also be declared in multi lines\par
+	stringlines =\par
+		"this is line one"\par
+		"this is line two"\par
+		"this is line three"\par
+		\par
+	// records are also allowed\par
+	record \{\par
+		\par
+		// same format as the const section\par
+		// these symbols are accessed via\par
+		// record.xxx \par
+		one = 1\par
+		float = 1.1\par
+		\par
+		// nested records are also allowed\par
+		// these symbols are accessed via\par
+		// record.nested.xxx\par
+		nested \{\par
+			one = 1\par
+			float = 1.1\par
+		\}\par
+	\}\par
+	\par
+	// two dimensional arrays are allowed\par
+	\par
+	array [ 2, 3 ] \{\par
+		1, 2\par
+		3, 4,\par
+		5, 6\par
+	\}\par
+\par
+\}\par
+\par
+The above is typical of both variants and constants.  Constants have further conveniences that may be used.  Arayna maintains an internal counter which begins with 1, using a labelname followed immediately by a period '.' with no spaces in between tells Arayna to equate the constant to the internal counter value and increment that value by 1.\par
+\par
+eg:\par
+\par
+.const \{\par
+	one.\par
+	two.\par
+	three.\par
+\}\par
+\par
+one will be set to 1, two to 2, three to 3.\par
+\par
+The internal counter may also be set to any desired value with the equasion @counter = n\par
+\par
+.const \{\par
+\par
+	@counter = 20\par
+	twenty.\par
+	twentyone. \par
+\par
+\}\par
+\par
+In this case, twenty will equal 20 and twenty one will equal 21\par
+This feature is useful when setting up rooms and objects since each must have a unique ID number, having Arayna pick numbers reduces the chance of duplicate IDs\par
+\par
+\par
+\par
+\b\fs28 Expression Evaluation:\b0\fs20\par
+\par
+Expression Evaluation handles arithmatic and logical operations.  These may appear in conditional branching diretives such as .if and .while, or in the .write directive.  Values in global and local variables are changed useing the evaluator.  The evaluator is similar to ones supported in high level languages.\par
+\par
+\par
+Eg:\par
+\par
+myVar = 4\par
+\par
+.if ( myVar > 3) \{\par
+	.write ("The value of myVar is greater than three")\par
+\}\par
+\par
+The expression evaluator recognizes the following operations.\par
+\par
+Math operations: \par
+	+	addition\par
+	-	subtraction\par
+	/	division\par
+	%	modulo\par
+	*	multiplication\par
+	=	equasion\par
+	()	precedence\par
+	-=	minus equal\par
+	--	minus 1\par
+	+=	plus equal\par
+	++	plus 1\par
+	/=	divide equal\par
+	*=	multiply equal\par
+	\par
+Boolean:\par
+	<	less than\par
+	>	greater than\par
+	<=	less than or equal to\par
+	>=	greater than or equal to\par
+	==	is equal to\par
+	!=	not equal to\par
+	&&	boolean and\par
+	||	boolean or\par
+	\par
+Logical:\par
+	!	logicl not\par
+	^	logical xor\par
+	&	logical and\par
+	|	logical or\par
+	\par
+= n	set varaible equal to var\par
++ n	add n\par
+- n	subtract n\par
+* n	multiply by n\par
+/ n	divide by n\par
+++		add one to a variable\par
+--		subtract one from a variable\par
++= n	add n to a variable\par
+-= n	subtract n from a variable\par
+*= n	multiply a variable by n\par
+/= n	divide a variable by n\par
+\par
+\par
+\par
+\b\fs28 Learning the Language:\b0\fs20\par
+\par
+	To help in learning the Arayna scriptiong language, several demo modules are included with the release package along with a sample adventure.  These modules are briefly described here.  To get a better idea, load the modules in a text editor and view the structure of the language.  The demonstration modules are commented for clarification.\par
+	\par
+conept.mod\par
+	This module showcases the Arayna language variable and constant formats, some of its math capabilities, writing output to the main window and the use of some looping and conditional instructions.\par
+	\par
+demo.mod\par
+demo.inc\par
+	This module and supporting include file demonstrades some scripting features and indroduces the dialog feature, introduces some rooms and objects, and ways to change objects after they are created.\par
+\par
+test.mod\par
+	This module is mainly for testing Arayna scripting features.  Nevertheless, it demonstrates some of the things that may be accomplished by the language and introduces the use of interrupts.\par
+		\par
+tiny.mod\par
+	A more complex example, this one is a mini adventure of 10 rooms and completing it requires completion of very simple puzzles, finding an object and communicating with an agent.\par
+	\par
+tutorial.mod\par
+	The complete script of a simple turotial covered in the Tutorial section.\par
+	\par
+hlaadvanture.mod\par
+	This is an Arayna port of Paul Pank's hlaadventure. Gameplay is different from the original.\par
+	\par
+\par
+\b\fs28 Tutorial:\b0\fs20\par
+\par
+The best way to learn a language is to use it.  In this section, the concepts will be covered so that you may be able to determine how to use the various instructions/functions available in the reference sections.\par
+\par
+The simplest module consists of an arayna section.  Create a file called "Tutorial.mod" in a text editor and save it in the mods folder of Arayna.  Set Arayna option to Open Last Mod (should be checkmarked).\par
+\par
+\par
+.arayna \{ \par
+\par
+\}\par
+\par
+Save that and open it from Arayna.  With this you will see a blank screen since the module doesn't do anything.\par
+Exit Arayna.\par
+\par
+We can now add a label and description to the module.  In any Arayna object, a label is always a short name that identifies the object and a desc is a more in depth description of what the object does.\par
+\par
+\par
+.arayna \{ \par
+\par
+	.label = "Tutorial Mod"\par
+	.desc = "Learning the Arayna language."\par
+\par
+\}\par
+\par
+\par
+Save this and run Arayna.  If you set it to Open Last Mod, this will open the module automatically.\par
+\par
+Not much has changed, except now you should see "Tutorial Mod" in the title bar and selecting Help->Module Info will show you the .desc\par
+\par
+Now to actually do something, we will need a .begin \{\} section.  This tells Arayna to begin running the main script.  It should be the last section in the source, after everything else is declared.  Since we have nothing so far we can just add it after the .desc\par
+We'll also write some output to the window.\par
+\par
+.arayna \{ \par
+\par
+	.label = "Tutorial Mod"\par
+	.desc = "Learning the Arayna language."\par
+\par
+	.begin \{\par
+		\par
+		.write( "Hello World" nl )\par
+		\par
+	\}\par
+\par
+\}\par
+\par
+Save and run Arayna.  Above, .write instructs Arayna to write to the display window.  nl stands for new line and Arayna writes future output on a new line.\par
+Write is useful also in writing the contents of variables, object numbers, descriptions, labels, boolean expressions, mathametical expressions, etc.\par
+\par
+We will now add an object, an area and a room.  The room will have no exits yet.\par
+These must go in before the .begin \{\} section.\par
+\par
+Objects, areas, rooms, agents, containers, etc are all defined in a .define \{\} section.\par
+More descriptions will be added in as 'comments'\par
+Comments can appear either with a double slash // indicating that the rest of the line is ignored\par
+or in comment blocks wich occure between a pair of /* and */\par
+\par
+Once the object and room have been added, we will also add a .teleport in the .begin section get put us in that room.\par
+\par
+\par
+.arayna \{ \par
+\par
+	.label = "Tutorial Mod"\par
+	.desc = "Learning the Arayna language."\par
+	\par
+	.define \{\par
+	\par
+		// define our first object\par
+		.object \{\par
+		\par
+			// every object must have a unique id\par
+			// this number is used to create, search for\par
+			// and move objects, ids must be greater than\par
+			// zero\par
+			\par
+			.id = 1\par
+			\par
+			.label = "Our object"\par
+			.desc = "some mysterious shapelss things"\par
+			\par
+			// in order for a player to do anything with an\par
+			// object, it must have verbs.  Verbs define\par
+			// all the actions that can be performed on an object.\par
+			// verbs use internal constants using the '@' sign\par
+			\par
+			.verbs( @examine, @get, @drop )\par
+			\par
+			// the above verbs indicate that an object may be 'examined'\par
+			// which display the .desc information, picked up and dropped.\par
+			// see the refernece section for a more comprehensive list of\par
+			// verbs\par
+			\par
+		\}\par
+		\par
+		// areas are a special object that can divide rooms into locations\par
+		// with unique events.  Not to important for this tutorial, but useful\par
+		// to have since it will show up in the information bar in Arayna.\par
+		// areas have no .desc\par
+		\par
+		.area \{\par
+		\par
+			.id = 2\par
+			.label = "Tutorial Area"\par
+			\par
+		\}\par
+		\par
+		// rooms are objects with their own 'id' space meaning that they have\par
+		// to be unique between rooms, but not unique between objects.\par
+		// since Arayna allocates memory based on this id number, it's advisable\par
+		// to start at 1 and keep new rooms sequencial.\par
+		\par
+		.room \{\par
+		\par
+			.id = 1\par
+			.label = "Our first room"\par
+			.desc = "this is where we will be teleported to as a starting room"\par
+			\par
+			// this is the id number of the area we declared above, any number\par
+			// of rooms may have this same area.\par
+			\par
+			.area = 2\par
+			\par
+			// here we will spawn the object we defined above. \par
+			// a spawn will create an object and add it to the\par
+			// room 'inventory'\par
+			// you may create as many of the same objects as you like\par
+			\par
+			.spawn( 1 )\par
+			\par
+			// this tells us to set all exits to 0\par
+			\par
+			.exits( .. )\par
+		\}\par
+	\}\par
+\par
+	.begin \{\par
+		\par
+		.write( "Hello World" nl )\par
+		\par
+		// teleport to the starting room\par
+		.teleport( 1 )\par
+	\}\par
+\par
+\}\par
+\par
+\par
+You can now run Arayna to enter the room and see what can be done with the one object.  You may have noticed in the demo modules that I haven't used any physical numbers to id objects.  Instead, I use constants to give objects IDs an easy to remember label which will make it easier to spawn them later on. \par
+\par
+\par
+\par
+\b\fs28 Events:\b0\fs20\par
+\par
+Events are an important part of designing interactive fiction games with Arayna.  An event is a 'section' of script that is executed when certain actions have been taken.  These actions can be entering a new room, events per move, interrupt events, events when objects are manipulated, events when action verbs are used, etc.\par
+\par
+For this example, we will expand on the previous tutorial script.\par
+We will add an event to object #1, there are two ways to add events, one way is to embed the script section right in the object definition, the other is to separately declare a section elsewhere.  for this tutorial, we will embed the event section.\par
+	\par
+\par
+.arayna \{ \par
+\par
+	.label = "Tutorial Mod"\par
+	.desc = "Learning the Arayna language."\par
+	\par
+	.define \{\par
+	\par
+		.object \{\par
+			.id = 1\par
+			.label = "Our object"\par
+			.desc = "some mysterious shapelss things"\par
+			.verbs( @examine, @get, @drop )\par
+			\par
+			// our event, label the event\par
+			.event = object1 \{\par
+				\par
+				.write( "we did something with Object #1" nl )\par
+				\par
+			\}\par
+		\}\par
+		\par
+		.area \{\par
+		\par
+			.id = 2\par
+			.label = "Tutorial Area"\par
+			\par
+		\}\par
+\par
+		.room \{\par
+		\par
+			.id = 1\par
+			.label = "Our first room"\par
+			.desc = "this is where we will be teleported to as a starting room"\par
+			.area = 2\par
+			.spawn( 1 )\par
+			.exits( .. )\par
+		\}\par
+	\}\par
+\par
+	.begin \{\par
+		\par
+		.write( "Hello World" nl )\par
+		.teleport( 1 )\par
+	\}\par
+\par
+\}\par
+\par
+\par
+Save and run the mod.  Now when you do something with the object, examine or get or drop, the event will execute.\par
+\par
+Let's now focus on the event:\par
+\par
+	// our event, label the event\par
+	.event = object1 \{\par
+		\par
+		.write( "we did something with Object #1" nl )\par
+		\par
+	\}\par
+\par
+During any event, certain internal variables are set according to which object has current focus and what action is being performed on the object.\par
+\par
+For example, in an object event, we have @this to indicate the object itself, call it the object 'pointer'\par
+From the object pointer, we can get the id, label, description, just about everything associated with the object, we can also change its properties.\par
+\par
+For now, let's display some of the object properties.\par
+\par
+	// our event, label the event\par
+	.event = object1 \{\par
+		\par
+		.write( "we did something with Object #1" nl, \par
+					"Object ID = ", @this.id, nl\par
+					"Object Label = ", @this.label, nl\par
+					"Object Desc = ", @this.desc, nl nl )\par
+		\par
+	\}\par
+ 	\par
+\par
+There are various other useful internal variables.\par
+\par
+@lastobject at any time contains a pointer to the last object manipulated.  This may or may not be the same as @this.  Unlike @this which can only be used in event sections, @lastobject can be used in any section.\par
+\par
+@thisroom at any time is a pointer to the current room that the player is in\par
+\par
+@fromroom at any time is a pointer to the room from which the player came, this can be zero if there hasn't been a previous room yet.\par
+\par
+@lastaction or @lastverb is a variable that contains which action was last used on the object.  It will be equal to one of the '@' signed verbes used to create the object, for example, @get or @examine\par
+\par
+Let's change the event so that it will only write the information if the player uses the "@get" verb on the object.\par
+For this, we will need to use conditional branching.\par
+	\par
+	// our event, label the event\par
+	.event = object1 \{\par
+		\par
+		.if( @lastverb == @get ) \{\par
+			.write( "we picked up the object" nl, \par
+					"Object ID = ", @this.id, nl\par
+					"Object Label = ", @this.label, nl\par
+					"Object Desc = ", @this.desc, nl nl )\par
+		\}\par
+	\}\par
+\par
+\par
+We will now turn this button into a teleporter.  To do so, we'll need to add a new room, and a new verb to the object, also modify the event to handle the new verb and teleportation.\par
+\par
+The room will be like the first room with a unique room id and different descriptions.\par
+\par
+Add this room below the first room:\par
+\par
+		.room \{\par
+		\par
+			.id = 2\par
+			.label = "Our second room"\par
+			.desc = "this is where we will be teleported when 'Our Object' is 'pressed'"\par
+			.area = 2\par
+			.exits( .. )\par
+		\}\par
+\par
+\par
+Now for our object, notice we added a @press verb, also we will extend the conditional branching with an .elseif to handle the new verb.\par
+\par
+		.object \{\par
+			.id = 1\par
+			.label = "Our object"\par
+			.desc = "some mysterious shapelss things"\par
+			.verbs( @examine, @get, @drop, @press )\par
+			\par
+			.event = object1 \{\par
+		\par
+				.if( @lastverb == @get ) \{\par
+					.write( "we picked up the object" nl, \par
+						"Object ID = ", @this.id, nl\par
+						"Object Label = ", @this.label, nl\par
+						"Object Desc = ", @this.desc, nl nl )\par
+				\}\par
+				.elseif( @lastverb == @press ) \{\par
+				\par
+					.teleport( 2 )\par
+					\par
+				\}\par
+				\par
+			\}\par
+		\}\par
+\par
+Save it and try it out.\par
+\par
+Notice that once we teleport to room #2, there is no way back to room #1.  Let's remedy this by adding an exit to room 2 that leads to room 1\par
+\par
+To do so, examine the .exits() instruction.  This instruction takes 10 comma separated direcion IDs and '..' which is shorthand for 'everything else is 0'\par
+Each ID corresponds to a direction of movement and, in order:\par
+north, south, east, west, northeast, northwest, southeast, southwest, up, down\par
+\par
+So for room 2, we want to add a 'south' direction to room one.  South is the second id so:\par
+\par
+.exits( 0, 1, .. )\par
+\par
+This tells us that north direction is 0, south direction leads to room 1 and the rest of the directions are zero.\par
+\par
+another way of writing it is :\par
+\par
+.exits( 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 )\par
+\par
+We can now return back to room 1 after being teleported to room 2\par
+\par
+Now we'll add a way to end the module.  To do so, let's expand the object script to end the game when the object is 'dropped'\par
+\par
+\par
+			.event = object1 \{\par
+		\par
+				.if( @lastverb == @get ) \{\par
+					.write( "we picked up the object" nl, \par
+						"Object ID = ", @this.id, nl\par
+						"Object Label = ", @this.label, nl\par
+						"Object Desc = ", @this.desc, nl nl )\par
+				\}\par
+				.elseif( @lastverb == @press ) \{\par
+				\par
+					.teleport( 2 )\par
+					\par
+				\}\par
+				.elseif( @lastverb == @drop ) \{\par
+				\par
+					.write( "This is the end of the tutorial" nl )\par
+					.endgame\par
+				\}	\par
+			\}\par
+\par
+Feel free to examine the other included modules for other things that can be done with the Arayna engine.\par
+\par
+\par
+\b\fs28 Event Order:\b0\fs20\par
+\par
+Arayna processes various events these are:\par
+\par
+Interrupts\par
+	There are two types of interrupt events, both are optional and only\par
+	executed if their respective sections have been defined.\par
+	\par
+	.intmove\{\}\par
+	This is a movement interrupt, if present, it is always executed prior\par
+	to any movement taking place via .teleport instruction.  It is\par
+	bypassed if the .move instruction is used instead.\par
+	Returning a 1 in this event causes the move to be interrupted, as in\par
+	no teleportation takes place.\par
+	\par
+	.intevent\{\}\par
+	This is an object interrupt.  If present, it is always executed prior\par
+	to object events taking place.  Returning 1 in this event causes the\par
+	object event to be interrupted.\par
+	\par
+The interrupt events take precedence over all other events.  By default, they return 0 or if 0 is returned, the event is executed as normal.\par
+\par
+Room Events\par
+	If the object in question is a .room, room events are executed if not interrupted by .intmove\par
+\par
+Verb events\par
+	Verb events are only executed if a .verbevent\{\} is declared.  This event is launched if the event has not been interrupted (returned 0 from .intevent ).\par
+	In a verb event, the internal varialbe @lastaction or @lastverb will contain one of the verb constants.\par
+	\par
+@added @removed Events\par
+	If an object was added to or removed from a container, the objects event handler is called and\par
+	@added or @removed will contain the pointer of the container from which the object was removed or to which the object was added.\par
+	If @added or @remove are 0, then the object was not recently added or removed.\par
+	These events are only valid if an object is added via the add method, they do not run when\par
+	the Arayna script is still initializing and the object is spawned into a container using\par
+	the .spawn directive, since the events of the object have not yet been compiled.\par
+\par
+Object Events\par
+	If not interrupted, the object event is launched with the action verb.\par
+Note that at times, the object event may be called multiple times.  For example, if the verb @get was used on an object, the object event is called various times:\par
+\par
+1.	@removed - the object event is called with @removed containing the container from which the object was just removed.\par
+2. @added - the object event is calld with @added containing the container to which the object was just added\par
+3. @lastverb = the object event is called with the lastverb containing the last action performed on the object.  By this time both @added and @removed will be zero.\par
+\par
+Area Events\par
+	If the object in question is a .room, and the room has a defined area with a defined area event, then the area event is executed next.\par
+	\par
+Arayna Events\par
+	if the object in question is a .room, and there is a defined arayna event, that is executed next.\par
+\par
+\par
+\par
+\par
+\b\fs28 Instruction Reference:\b0\fs20\par
+\par
+A list of arayna script instructions\par
+\par
+\par
+\b\fs28 arayna:\b0\fs20\par
+\par
+	.arayna \{ \}\par
+\par
+Informs arayna that this is an arayna script.  All instructions, objects, equasions must appear within an .arayna section.\par
+\par
+Legal instructions in Arayna section:\par
+\par
+	.label			defines the module name\par
+	.desc				defines an introduction to the module\par
+	.event			an event that is executed every turn\par
+	.intmove\par
+	.intevent\par
+	.showcontrols\par
+	.hidecontrols\par
+	.showcommands\par
+	.hidecommands\par
+	.section			\par
+	.define\par
+	.begin\par
+	.var\par
+	.const\par
+	\par
+See the respective instruction descriptions for more information.\par
+\par
+\par
+\b\fs28 showcontrols:\b0\fs20\par
+\par
+	.showcontrols\par
+	\par
+Displays the navigation panel.  This is the default state.\par
+\par
+Legal in any run-time section\par
+\par
+See also:\par
+	.hidecontrols\par
+	\par
+\par
+\par
+\b\fs28 hidecontrols:\b0\fs20\par
+\par
+	.hidecontrols\par
+	\par
+Hides the navigation panel.  Movement via the panel will not be available while the panel is hidden.\par
+\par
+Legal in any run-time section\par
+\par
+See also:\par
+	.showcontrols\par
+	\par
+\par
+\b\fs28 showcommands:\b0\fs20\par
+\par
+	.showcommands\par
+	\par
+Displays the command list window.  This is the default state.\par
+\par
+Legal in any run-time section\par
+\par
+See also:\par
+	.hidecommands\par
+	\par
+\par
+\b\fs28 hidecommands:\b0\fs20\par
+\par
+	.hidecommands\par
+	\par
+Hides the command list window.  Any declared command will not be available while the window is hidden.\par
+\par
+Legal in any run-time section\par
+\par
+See also:\par
+	.showcommands\par
+\par
+\par
+\b\fs28 debug:\b0\fs20\par
+\par
+	.debug\par
+	\par
+Legal in .arayna\{\} section\par
+\par
+Activates the 'Debug' menu.  The debug menu has options for teleporting to any legal room in the current module, for spawning defined objects and for listing rooms and objects currently declared.\par
+\par
+\par
+\par
+\b\fs28 label:\b0\fs20\par
+\par
+	.label = <string>\par
+	\par
+Attaches a short string description to an object.\par
+When used in the .arayna section, it defines the name of the module.\par
+\par
+\par
+\b\fs28 desc:\b0\fs20\par
+\par
+	.desc = <string>\par
+	\par
+Used for more comprehensive descriptions of an object, typically displayed when an object is "examined."\par
+When used in the .arayna section, it defines a description of the module, shown when the "About" menu is selected.\par
+\par
+\par
+\b\fs28 const:\b0\fs20\par
+\par
+	.const \{\}\par
+	\par
+Provides a section for declaring constant labels.\par
+Labels have the format:\par
+	label = value\par
+	\par
+Constants may not be changed throughout the course of execution.  Constant values may contain integers, real numbers, records and strings.\par
+Records have the format:\par
+	record \{\}\par
+	\par
+Labels declared in the constant section may also take advantage of Araynas internal counter.  Any label followed immediately by a period '.' is equated with the current counter value and the counter is incremented by one.\par
+Labels with internal counter have the format:\par
+	label.\par
+\par
+eg:\par
+\par
+	.const \{\par
+		one = 1\par
+		alsoone.\par
+		string = "string"\par
+		record \{\par
+			one = 1.0\par
+		\}\par
+		\par
+		@counter = 10\par
+		has10value.\par
+	\}\par
+\par
+\par
+\par
+\b\fs28 var:\b0\fs20\par
+\par
+	.var \{\}\par
+	\par
+Provides a section for declaring variant labels.\par
+Labels have the format:\par
+	label = value\par
+	\par
+Variants are variables that may be set to any supported value throughout execution of a script.  Variants may contain integers, real numbers, strings and records.\par
+Records have the format:\par
+	record \{\}\par
+	\par
+\par
+eg:\par
+\par
+	.var \{\par
+		one = 1\par
+		string = "string"\par
+		record \{\par
+			one = 1.0\par
+		\}\par
+	\}	\par
+\par
+\par
+\b\fs28 include:\b0\fs20\par
+\par
+	.include <filename>\par
+\par
+<filename> must be a valid disk file.\par
+	\par
+Opens <filename> and continues processing the script in that file.  Once complete, control returns right beyond the include instruction and processing continues.\par
+\par
+\par
+\b\fs28 begin:\b0\fs20\par
+\par
+	.begin \{\}\par
+	\par
+Begin defines the absolute section where the run-time of an arayna script begins.  Any script that does any sort of output requires a begin section at minimum.\par
+\par
+Legal instructions in a begin section:\par
+	Everything that appears in a normal section except .const and .var, also .return has no real use here.\par
+	See section for more information.\par
+\par
+\par
+\b\fs28 section:\b0\fs20\par
+\par
+	.section <label> \{\}\par
+\par
+Sections declare separate areas of execution.  The instructions in sections are executed automatically when attached to events or explicitly from another section.\par
+Variants and constants declared in a section are local to that section only.  They may be accessed from other sections with the following format:\par
+\par
+<section label>.<variant label>\par
+\par
+eg:\par
+	.section dodad \{\par
+		.var \{\par
+			indodad = 0\par
+		\}\par
+	\}\par
+\par
+Sections may also return a value via the '.return n' instruction.\par
+\par
+Legal Instructions in a section:\par
+	expressions\par
+	.var\par
+	.const\par
+	.write\par
+	.if\par
+	.elseif\par
+	.else\par
+	.while\par
+	.forever\par
+	.break\par
+	.continue\par
+	.continueif\par
+	.return\par
+	.cls\par
+	.wait\par
+	.endgame\par
+	.teleport\par
+	.destroy\par
+	\par
+\par
+\par
+\b\fs28 intmove:\b0\fs20\par
+\par
+	.intmove \{\}\par
+\par
+Legal in an .arayna section\par
+\par
+Sets up a movement interrupt.  Normally, when a direction button is clicked, Arayna will load the room into appropriate internal variables, enter the room and launch any room events, if present.\par
+\par
+intmove is an optional instruction which allows setting up a general interrupt which is called after the room variables are loaded but before the actual move takes place.\par
+\par
+If an interrupt is used, it is important to tell Arayna how you want to deal with the results.  It is required to use .return n in this section where 'n' is either a zero or one.\par
+\par
+.return 1\par
+	informs Arayna to proceed as normal, enter the room and execute any events.\par
+\par
+.return 0\par
+	informs Arayna not to proceed as normal.  The room is not entered and events not executed.  However, if this return option is used, the player will end up in limbo and the game will crash.  It will be necessary to use the .teleport instruction to send the player to a valid room.  	\par
+\par
+	\par
+\par
+\b\fs28 intevent:\b0\fs20\par
+\par
+	.intevent \{\}\par
+	\par
+Legal in an .arayna section\par
+\par
+Sets up an object action interrupt.  Normally when a verb is used on an object, Arayna may take certain automatic steps depending on the verb, then launch any events, if present.\par
+\par
+intevent is an optional instruction which allows setting up a general interrupt which is called after the action and object internal variables are loaded but before any automatic action or event is performed.\par
+\par
+If this interrupt is used, it is improtant to tell Arayna how you want to deal with the results.  It is required to use .return n in this section where 'n' is either a zero or one.\par
+\par
+.return 1\par
+	informs Arayna to proceed as normal.  Perform automatic functions and launch any events.\par
+	\par
+.return 0\par
+	informs Arayna not to proceed as normal.\par
+	\par
+\par
+\par
+\b\fs28 verbevent:\b0\fs20\par
+\par
+	.verbevent \{\}\par
+	\par
+optional valid in .arayna section.\par
+an event called every time an action verb is used.\par
+this event is called after interrupts but before object events\par
+	\par
+	@lastaction or @lastverb will contain the @<verb> constant\par
+	@lastobject will contain the object being manipulated\par
+	\par
+\par
+\par
+\b\fs28 saveevent:\b0\fs20\par
+\par
+	.saveevent \{\}\par
+	\par
+event called after the save menu item is selected\par
+saving stores the states of all objects, and inventories\par
+however, object type variants are not preserved since\par
+object addresses change from game to game.\par
+\par
+\par
+\b\fs28 loadevent:\b0\fs20\par
+\par
+	.loadevent \{\}\par
+	\par
+event called after the load menu item is selected\par
+if the script relies on object addresses being stored in\par
+variants, here is a good place to update those variables\par
+\par
+\par
+\b\fs28 define:\b0\fs20\par
+\par
+	.define \{\}\par
+	\par
+Provides a section for declaring gameworld objects.  Such objects may be rooms, areas, items a player may interact with, non-player characters, dialogs, etc.\par
+\par
+Legal instructions for a define section:\par
+\par
+	.area\par
+	.object\par
+	.container\par
+	.room\par
+	.dialog\par
+	.agent\par
+	.player\par
+	\par
+	\par
+\par
+\par
+\b\fs28 area:\b0\fs20\par
+\par
+	.area \{\}\par
+	\par
+Legal in a .define \{\}.\par
+\par
+Areas are virtual locales for groups of rooms.  Each room must be attached to a particular area.\par
+Areas provide for event handling anytime a movement is made in any room of a particular area.\par
+\par
+Legal instructions for an area:\par
+\par
+	.id		*mandatory\par
+	.label\par
+	.event\par
+	\par
+\par
+\b\fs28 id:\b0\fs20\par
+\par
+	.id = n\par
+	\par
+Where n > 0\par
+\par
+Used to number objects that appear in the gameworld.  All objects must have a unique ID or there will be duplication errors.\par
+Room objects exist in their own name space so that there will be no collision between room objects and other objects of identical value.   \par
+\par
+\par
+\b\fs28 object:\b0\fs20\par
+\par
+	.object \{\}\par
+	\par
+Legal in a .define \{\}\par
+\par
+An object is the basic tool for items that a player may interact with.  These may be things a player can pick up or manipulate in other ways.\par
+\par
+Instructions legal in an object section:\par
+\par
+	.id		*mandatory\par
+	.label\par
+	.desc\par
+	.verbs\par
+	.event\par
+	.key\par
+	.uses\par
+	.state\par
+	.stack\par
+	.charges\par
+	\par
+\par
+\b\fs28 container:\b0\fs20\par
+\par
+	.container \{\}\par
+	\par
+Legal in a .define \{\}\par
+\par
+Similar to an object, a container may also contain other objects.  Note that the player, rooms and agents are also containers, but treated differently by the game engine.\par
+\par
+Instructions legal in a container section:\par
+\par
+	.id		*mandatory\par
+	.label\par
+	.desc\par
+	.verbs\par
+	.event\par
+	.key\par
+	.uses\par
+	.state\par
+	.stack\par
+	.charges\par
+\par
+\par
+\b\fs28 agent:\b0\fs20\par
+\par
+	.agent \{\}\par
+	\par
+Legal in a .define \{\}\par
+\par
+Similar to a container.  Treated separately for game engine purposes.\par
+\par
+Instructions legal in an agent section:\par
+\par
+	.id		*mandatory\par
+	.label\par
+	.desc\par
+	.verbs\par
+	.event\par
+\par
+\par
+\par
+\b\fs28 player:\b0\fs20\par
+\par
+	.player \{\}\par
+\par
+Legal in a .define \{\}\par
+\par
+Only one player object exists in the game.  This doesn't technicall define a new object, it changes the existing one.\par
+\par
+Instructions legal in a player section:\par
+\par
+	.label\par
+	.event\par
+	.spawn\par
+\par
+\par
+\par
+\b\fs28 room:\b0\fs20\par
+\par
+	.room \{\}\par
+	\par
+Legal in a .define \{\}\par
+\par
+Defines a room.  Rooms exist in their own memory space so their id numbers may be shared by objects.  However, each room must have it's own unique id from other rooms.\par
+It is advisable to start rooms with an id of 1 since Arayna will allocate at least as much memory as necessary for id number of rooms.\par
+So if you start with room id 10000, Arayna will allocate memory for a minimum of 10000 rooms!\par
+\par
+Instructions legal in a room section:\par
+\par
+	.id		*mandatory\par
+	.area\par
+	.label\par
+	.desc\par
+	.event\par
+	.spawn\par
+	.exits\par
+	\par
+\par
+\par
+\b\fs28 verbs:\b0\fs20\par
+\par
+	.verbs( @<verb>, .. )\par
+	\par
+Defines which verbs may be performed on an object.  Verbs are internal variables accessed with the at sign '@'\par
+\par
+Currently supported verbs:\par
+\par
+standard verbs, these do not\par
+alter object states\par
+\par
+	@examine	@read\par
+	@attack\par
+	@search\par
+	@buy\par
+	@climb\par
+	@talk\par
+	@sell\par
+	@steal\par
+	@ask\par
+	@say\par
+	@sing\par
+	@turnleft\par
+	@turnright\par
+	@clean	\par
+	@get\par
+	@drop\par
+	@shoot\par
+	@swim\par
+	@press\par
+	@tie\par
+	@untie\par
+	@look\par
+	\par
+these verbs 'use' a charge in the object\par
+possibly destroying it if charges run out\par
+\par
+	@eat\par
+	@drink\par
+	@use\par
+\par
+these verbs set the object to @on state\par
+\par
+	@wear\par
+	@wield\par
+	@activate	\par
+\par
+these verbs set the object to @off state	\par
+\par
+	@remove\par
+	@unwield\par
+	@deactivate\par
+\par
+this verb sets the object to @open state\par
+\par
+	@open\par
+	\par
+this verb sets the object to @close state\par
+\par
+	@close\par
+\par
+this verb sets the object to @lock state\par
+\par
+	@lock\par
+\par
+this verb sets the object ot @unlock state\par
+\par
+	@unlock\par
+\par
+this verb sets the object to @break state\par
+\par
+	@break\par
+\par
+this verb sets the object to @fix state\par
+\par
+	@fix\par
+\par
+these verbs wait for click on an object\par
+and return it in @lastobject\par
+\par
+	@usewith\par
+	@useon\par
+	@combine\par
+	@target\par
+\par
+\par
+\par
+	Compound verbs also exist which are an easier\par
+	method of including many verbs with just one\par
+	variable.\par
+	\par
+	@general		get, drop, use, examine\par
+	@wearable	get, drop, wear, remove, examine\par
+	@wieldable	get, drop, wield, unwield, examine\par
+	@fooditem	get, drop, eax, examine\par
+	@drinkitem	get, drop, drink, examine\par
+	\par
+Note that some options won't always be available.  Arayna decides based on the objects current locale.\par
+For example, "get" will be available only if the object is in the room while "drop" will be available only if the object is in the player's inventory.\par
+Similarily, availability of some verbs depend on the object's state.  See .state for more informatin.\par
+\par
+@read and @examine are synonymous.\par
+\par
+\par
+\b\fs28 exits:\b0\fs20\par
+\par
+	.exits( n, s, e, w, ne, nw, se, sw, u, d, .. )\par
+\par
+Legal in a .room section.\par
+\par
+Sets the 10 direction exits of a room.  Each of the directions must be a valid room id or a zero to signify no exit in that direction.\par
+At any time during the direction setting, you can use a double dot '..' to instruct Arayna to set the following directions to 0.\par
+\par
+Eg:\par
+	.exits( 10, .. )\par
+	\par
+This will set in the current room, one exit to the north that leads to room 10, all the other directions are zero.\par
+\par
+\par
+\par
+\b\fs28 dialog:\b0\fs20\par
+\par
+	.dialog \{\}\par
+	\par
+.dialog \{\} legal in a .define \{\}\par
+\par
+When used in a define section, it allocates an object which can later be used in seting of dialog sets.\par
+\par
+Instructions legal in a .dialog \{\} section\par
+\par
+	.id	*mandatory\par
+	.label\par
+	.desc\par
+	.event\par
+	.activate\par
+	.deactivate\par
+	\par
+See also\par
+	.newdialog\par
+	.begindialog\par
+	.enddialog\par
+	.activate\par
+	.deactivate\par
+	\par
+\par
+\b\fs28 command:\b0\fs20\par
+\par
+	.command \{\}\par
+	\par
+.command \{\} legal in a .define \{\}\par
+\par
+When used in a define section, it allocates an object which can later be used with .newcommands\par
+\par
+Instructions legal in a .command \{\} section\par
+\par
+	.id	*mandatory\par
+	.label\par
+	.desc\par
+	.event\par
+	\par
+See also\par
+	.newcommands\par
+\par
+\par
+\b\fs28 verbs:\b0\fs20\par
+\par
+	.verbs( @<verb>, .. )\par
+	\par
+Defines which verbs may be performed on an object.  Verbs are internal variables accessed with the at sign '@'\par
+\par
+Currently supported verbs:\par
+\par
+standard verbs, these do not\par
+alter object states\par
+\par
+	@examine	@read\par
+	@attack\par
+	@search\par
+	@buy\par
+	@climb\par
+	@talk\par
+	@sell\par
+	@steal\par
+	@ask\par
+	@say\par
+	@sing\par
+	@turnleft\par
+	@turnright\par
+	@clean	\par
+	@get\par
+	@drop\par
+	@shoot\par
+	@swim\par
+	@press\par
+	@tie\par
+	@untie\par
+	@look\par
+	\par
+these verbs 'use' a charge in the object\par
+possibly destroying it if charges run out\par
+\par
+	@eat\par
+	@drink\par
+	@use\par
+\par
+these verbs set the object to @on state\par
+\par
+	@wear\par
+	@wield\par
+	@activate	\par
+\par
+these verbs set the object to @off state	\par
+\par
+	@remove\par
+	@unwield\par
+	@deactivate\par
+\par
+this verb sets the object to @open state\par
+\par
+	@open\par
+	\par
+this verb sets the object to @close state\par
+\par
+	@close\par
+\par
+this verb sets the object to @lock state\par
+\par
+	@lock\par
+\par
+this verb sets the object ot @unlock state\par
+\par
+	@unlock\par
+\par
+this verb sets the object to @break state\par
+\par
+	@break\par
+\par
+this verb sets the object to @fix state\par
+\par
+	@fix\par
+\par
+these verbs wait for click on an object\par
+and return it in @lastobject\par
+\par
+	@usewith\par
+	@useon\par
+	@combine\par
+	@target\par
+\par
+\par
+\par
+	Compound verbs also exist which are an easier\par
+	method of including many verbs with just one\par
+	variable.\par
+	\par
+	@general		get, drop, use, examine\par
+	@wearable	get, drop, wear, remove, examine\par
+	@wieldable	get, drop, wield, unwield, examine\par
+	@fooditem	get, drop, eax, examine\par
+	@drinkitem	get, drop, drink, examine\par
+	\par
+Note that some options won't always be available.  Arayna decides based on the objects current locale.\par
+For example, "get" will be available only if the object is in the room while "drop" will be available only if the object is in the player's inventory.\par
+Similarily, availability of some verbs depend on the object's state.  See .state for more informatin.\par
+\par
+@read and @examine are synonymous.\par
+\par
+\par
+\b\fs28 charges:\b0\fs20\par
+\par
+	.charges( <n charge>, <max charges> )\par
+	\par
+Charges may be used if you want Arayna to automatically keep track of an object's usage.\par
+If max charge is greater than zero, the object is preserved when the charges run out.\par
+If max charge is zero, the object is removed and destroyed when the charges run out.\par
+\par
+The current number of charges is displayed when the object is examined.\par
+\par
+\par
+\par
+\b\fs28 stack:\b0\fs20\par
+\par
+	.stack = n\par
+	.stack = @unlimited\par
+	\par
+Sets the stackable state of an object.  If used, the object will be able to stack 'n' components in the inventory.\par
+For example, a 'money' object may have a stack limit of @unlimited, this will show up as the money object with a\par
+a number indicating how many of the object in the stack.\par
+\par
+Getting and dropping stacked objects will open a dialog asking how many to take or drop from the stack.\par
+If an object exceeds the stack value, the stack is split into a new object.\par
+\par
+\par
+\par
+\b\fs28 event:\b0\fs20\par
+\par
+	.event eventID\par
+	.event eventID \{\}\par
+	.event \{\}\par
+	\par
+Events are special sections executed each time an action is performed on an object.  Actions are the verbs available to the object and performed when the user selects an action verb from the object's menu.\par
+\par
+The eventID must have a corresponding .section eventID \{\} elsewhere in the module.  Optionally, the section may be embedded right at the .event declaration site.  Everything legal in a normal section is legal in the embedded .event section.\par
+These events may also be called explicitly through an object function call, see section on function calls.\par
+\par
+The third syntax allows for nameless embedded events.  For nameless events, Arayna creates an internal name for the event and calls that when an event occurs.  The internal name of the event is "OBJ@<obj id>"  This is not needed unless it is desired to explicitly call a nameless event.  In such a case, it is advisable to use one of the named event syntax instead.\par
+\par
+\par
+\b\fs28 state:\b0\fs20\par
+\par
+	.state( @<state>, .. )\par
+	\par
+States describe the object condition using internal variables.  It could be on, off, open, closed, locked, borken, etc.\par
+\par
+Available states:\par
+	@open\par
+	@close\par
+	@lock\par
+	@unlock\par
+	@on\par
+	@off\par
+	@pull\par
+	@push\par
+	@break\par
+	@fix\par
+	@shop\par
+\par
+Some states are implied compound.  For example, using @lock will also perform @close by implication.\par
+ \par
+\par
+\par
+\b\fs28 group:\b0\fs20\par
+\par
+	.group( n )\par
+	\par
+Identifies object with group n.  The object group can later be retreived with <obj>.group syntax.\par
+This is identical to areas that are used with room objects.\par
+\par
+\par
+\b\fs28 key:\b0\fs20\par
+\par
+	.key = id\par
+	.uses = id\par
+	\par
+Determines another object which is implied with this object.  If the object is a container, the 'key' object is the object that locks and unlocks the container.\par
+\par
+\par
+\par
+\b\fs28 uses:\b0\fs20\par
+\par
+	.key = id\par
+	.uses = id\par
+	\par
+Determines another object which is implied with this object.  If the object is a container, the 'key' object is the object that locks and unlocks the container.\par
+\par
+\par
+\par
+\b\fs28 teleport:\b0\fs20\par
+\par
+	.teleport( <room id> )\par
+\par
+<room id> must be a valid, declared room object.\par
+	\par
+Moves the player perspective to a room in standard mode.  This instruction is needed at least once to insert the player into the starting room. If may be used any number of successive times to teleport the player perspective to any location in the gameworld.\par
+A teleport involves updating @thisroom and @fromroom, room entry, movement interrupt event, room entry event, area event and game event.  The player position is moved to the room and the room description is displayed.  Movement counter is incremented.\par
+\par
+\par
+\b\fs28 move:\b0\fs20\par
+\par
+	.move( <room id> )\par
+	\par
+<room id> must be a valid, declared room object.\par
+\par
+Moves the player perspective to a room in standard mode.  This is a stealth move.\par
+Unlike .teleport, there are no events executed and no room description is displayed.  Movement counter is not changed.\par
+\par
+@thisroom and @fromroom however are updated.\par
+ \par
+\par
+\par
+\b\fs28 write:\b0\fs20\par
+\par
+	.write( n, nl, <expr>, .. )\par
+	\par
+Legal in runtime sections\par
+\par
+write outputs text to the main window.  It takes in any number of comma delimited parameters.\par
+\par
+Parameters may be variables, objects, object fields, constants, internal objects and nl which is a special symbol for new line.\par
+\par
+\par
+\b\fs28 cls:\b0\fs20\par
+\par
+	.cls\par
+	\par
+Clears the output screen.\par
+\par
+\par
+\b\fs28 wait:\b0\fs20\par
+\par
+	.wait\par
+	.wait( n )\par
+	\par
+Pauses the game.\par
+The first format waits for a mouse click to continue.\par
+They second format waits for n seconds.\par
+\par
+\par
+\par
+\b\fs28 endgame:\b0\fs20\par
+\par
+	.endgame\par
+	\par
+Whereever encountered, this halts execution and frees all memory associated with the module.\par
+\par
+\par
+\b\fs28 if:\b0\fs20\par
+\par
+	.if( <expr> ) \{\}\par
+	\par
+This is a conditional branching instruction.\par
+\par
+If the expression is true, the following section is executed.\par
+\par
+See also\par
+	.elseif\par
+	.else\par
+	\par
+\par
+\b\fs28 elseif:\b0\fs20\par
+\par
+	.elseif( <expr> ) \{\}\par
+\par
+This is a conditional branching instruction.\par
+\par
+Following an .if or .elseif instruction, if the previous expression was false, tests the new expression.  Launches following section if true.\par
+\par
+\par
+See also\par
+	.if\par
+	.else\par
+	\par
+\par
+\b\fs28 else:\b0\fs20\par
+\par
+	.else \{\}\par
+	\par
+This is a conditional branching instruction.\par
+Following an .if or .elseif instruction, if the previous expressions were all false, the following section is executed.\par
+\par
+See also\par
+	.if\par
+	.elseif\par
+	\par
+\par
+\b\fs28 while:\b0\fs20\par
+\par
+	.while( <expr> ) \{\}\par
+	\par
+This is a conditional looping instruction.\par
+\par
+The following section loops as long as the expression returns true.\par
+If the expression is false to begin with, the section is not executed at all.\par
+\par
+See also\par
+	.continue\par
+	.continueif\par
+	.break\par
+	.breakif\par
+\par
+\par
+\b\fs28 forever:\b0\fs20\par
+\par
+	.forever \{\}\par
+	\par
+This is an unconditional looping instruction.\par
+\par
+The following section is looped indefinitely.  The only way out is to use an explicit break.\par
+\par
+See also\par
+	.continue\par
+	.continueif\par
+	.break\par
+	.breakif\par
+\par
+\par
+\b\fs28 breakif:\b0\fs20\par
+\par
+	.breakif( <expr> )\par
+	\par
+Legal only an a looping instruction.\par
+\par
+At any point in the loop section, exits the loop if the expression returns true.\par
+\par
+See also:\par
+	.while\par
+	.forever\par
+	.continue\par
+	.continueif\par
+	.break\par
+\par
+\par
+\b\fs28 break:\b0\fs20\par
+\par
+	.break\par
+	\par
+Legal only an a looping instruction.\par
+\par
+At any point in the loop section, exits the loop unconditionally.\par
+\par
+See also:\par
+	.while\par
+	.forever\par
+	.continue\par
+	.continueif\par
+	.breakif\par
+\par
+\par
+\b\fs28 continue:\b0\fs20\par
+\par
+	.continue\par
+	\par
+Legal only an a looping instruction.\par
+\par
+Instructs Arayna to return to the top of the loop ignoring the rest of the instructions in the loop section.\par
+\par
+See also:\par
+	.while\par
+	.forever\par
+	.continueif\par
+	.break\par
+	.breakif\par
+	\par
+\par
+\b\fs28 continueif:\b0\fs20\par
+\par
+	.continueif( <expr> )\par
+	\par
+Legal only an a looping instruction.\par
+\par
+Instructs Arayna to return to the top of the loop ignoring the rest of the instructions in the loop section if the expression returns true.  Otherwise the rest of the instructions are executed.\par
+\par
+See also:\par
+	.while\par
+	.forever\par
+	.continue\par
+	.break\par
+	.breakif\par
+\par
+\par
+\b\fs28 new:\b0\fs20\par
+\par
+	var = .new( id )\par
+	\par
+	returns object\par
+		\par
+Creates a new object with id.  Returns the object.\par
+This instruction can be embedded in expressions.\par
+\par
+\par
+\b\fs28 random:\b0\fs20\par
+\par
+	var = .random( low, high )\par
+		\par
+	returns integer\par
+	\par
+Selects a random number between low and high, returns in var\par
+\par
+\par
+\par
+\b\fs28 getstring:\b0\fs20\par
+\par
+	var = .getstring( "title" )\par
+	\par
+	returns string\par
+	\par
+Opens a dialog with title "title" and waits for string input from user.  String is returned in var\par
+\par
+\par
+\par
+\b\fs28 getnumber:\b0\fs20\par
+\par
+	var = .getnumber( "title" )\par
+		\par
+	returns integer\par
+	\par
+Opens a dialog with title "title" and waits for number input from user.  Number is returned as integer in var\par
+		\par
+\par
+\b\fs28 openfile:\b0\fs20\par
+\par
+	var = .openfile( "filename" )\par
+	\par
+	returns file object\par
+	\par
+Opens the file "filename" and returns the file object in var.  This object may further be used with file i/o functions read, write, save, close and output in .write\par
+\par
+\par
+\par
+\b\fs28 newfile:\b0\fs20\par
+\par
+	var = .newfile()\par
+	\par
+	returns file object\par
+	\par
+Creates a new file object.  This object may further be used with file i/o functions read, write, save, close and output in .write\par
+This may also be used as a buffer that simulates a dynamic single dimension array. \par
+\par
+\par
+\b\fs28 existsfile:\b0\fs20\par
+\par
+	var = .existsfile( filename )\par
+	\par
+	returns true or false ( 1 or 0 )\par
+	\par
+If the file 'filename' exists, returns 1.  If 'filename' does not exist, returns 0.\par
+\par
+\par
+\par
+\b\fs28 destroy:\b0\fs20\par
+\par
+	.destroy( <obj> )\par
+	\par
+Releases memory associated with an object.  This must be a previously spawned or created object.\par
+\par
+\par
+\par
+\b\fs28 newdialog:\b0\fs20\par
+\par
+	.newdialog\par
+	.newdialog( id, .. )\par
+	\par
+Resets the topic list of to begin a new dialog set.  Dialog sets use .dialog objects to set up conversation trees.\par
+id must be a valid .dialog object.\par
+\par
+\par
+See also:\par
+	.begindialog\par
+	.enddialog\par
+	.dialog\par
+	.activate\par
+	.deactivate\par
+	\par
+\par
+\b\fs28 begindialog:\b0\fs20\par
+\par
+	.begindialog\par
+	\par
+Sets the game in dialog mode.  This removes the command window, the room inventory window and replaces them with dialog topics previously created with .newdialog or .dialog and activated with .activate\par
+Each active topic in a dialog set is displayed in a list allowing the user to select topics.\par
+\par
+\par
+\b\fs28 enddialog:\b0\fs20\par
+\par
+	.enddialog\par
+	\par
+Sets the game back into normal mode, restores command window and room inventory list and normal navigation may ensue.\par
+\par
+\par
+\par
+\b\fs28 activate:\b0\fs20\par
+\par
+	.activate( <dialog id>, .. )\par
+\par
+Legal in runtime section and in .dialog \{\} section.\par
+	\par
+Adds topics to a dialog topic list.  If used in a .dialog\{\} section, topics are added only after a .deactivate instruction, if one is used.\par
+\par
+See also:\par
+	.dialog\par
+	.newdialog\par
+	.begindialog\par
+	.enddialog\par
+	.deactivate\par
+	\par
+\par
+\b\fs28 deactivate:\b0\fs20\par
+\par
+	.deactivate( @all, <dialog id>, .. )\par
+	\par
+Legal in runtime sections adn in .dialog \{\} section.\par
+\par
+Removes topics from a dialog topic list.  If used in a .dialog\{\} section, it is executed before .activate instruction, if one is present.\par
+Also recognizes a special constant, @all which removes all topics from the current dialog set.\par
+\par
+See also:\par
+	.dialog\par
+	.newdialog\par
+	.begindialog\par
+	.enddialog\par
+	.activate\par
+\par
+\par
+\b\fs28 newcommands:\b0\fs20\par
+	\par
+	.newcommands\par
+	.newcommands( id, id[] )\par
+\par
+Removes existing commands from the command window.  If the 2nd form is used, new commands are added to the command window.\par
+\par
+Valid in any runtime section.\par
+\par
+See also:\par
+	.command\par
+	\par
+\par
+\b\fs28 addcommands:\b0\fs20\par
+\par
+	.addcommands( id, id[] )\par
+\par
+Legal in arayna run-time and .command section\par
+	\par
+Adds commands to the current command list.  This may be used in an arayna run-time section or a .command\{\} object.\par
+If used in a .command\{\} object, it is processed after any existing .removecommands instructions.\par
+\par
+\par
+See Also\par
+	.newcommands\par
+	.removecommands\par
+\par
+\par
+\par
+\b\fs28 removecommands:\b0\fs20\par
+\par
+	.removecommands( id, id[] )\par
+	\par
+Legal in arayna run-time and .command section\par
+\par
+Removes commands from the current command list.  If used in a .command section, it is processes before any existing .addcommands instruction.\par
+Also recognizes a special constant, @all which removes all commands from the current command set.\par
+\par
+\par
+\b\fs28 Function Reference:\b0\fs20\par
+\par
+	A list of Arayna object functions.  These differ from the regular instructions in that they are methods of objects.\par
+	\par
+\par
+\par
+\b\fs28 verbs:\b0\fs20\par
+\par
+	<obj>.verbs( @<verb>, .. )\par
+	\par
+<obj> is a valid object\par
+\par
+Serves the same function as .verbs() instruction used during object definition.  This allows a run-time change of an object'ss verbs.\par
+\par
+\par
+\par
+\b\fs28 state:\b0\fs20\par
+\par
+	<obj>.state( @<state>, .. )\par
+	\par
+<obj> is a valid object\par
+\par
+Serves the same function as the .state instruction used during object definition.  This allows a run-time change of an objecct's state.\par
+\par
+\par
+\par
+\b\fs28 isstate:\b0\fs20\par
+\par
+	<obj>.isstate( @<state> )\par
+	\par
+<obj> is a valid object\par
+\par
+Returns true if object state is @<state>\par
+\par
+\par
+\b\fs28 exit:\b0\fs20\par
+\par
+	<room>.exit( @<dir>, <room> )\par
+	<room>.exit( @<dir>, <room id> )\par
+	<room>.exit( @<dir>, 0 )\par
+	\par
+<room> is a valid room object\par
+\par
+Allows run-time alteration of room exits.\par
+\par
+@<dir> must be a valid direction internal constant.\par
+\par
+DIRECTIONS\par
+	@north\par
+	@south\par
+	@east\par
+	@west\par
+	@up\par
+	@down\par
+	@northeast\par
+	@northwest\par
+	@southeeast\par
+	@southwest\par
+\par
+The destination <room> must also be a valid room object or a room id.\par
+If the destination is a zero, the direction is set to zero, removing any previous link in that direction.\par
+\par
+\par
+\par
+\b\fs28 has:\b0\fs20\par
+\par
+	var = <container>.has( id )\par
+		\par
+<container> must be a valid container type object; container, room, agent, @player, etc.\par
+id must be a defined object id\par
+\par
+Checks the container's inventory for an object with matching id.  If found, it will return that object, otherwise zero will be returned.\par
+\par
+\par
+\par
+\b\fs28 event:\b0\fs20\par
+\par
+	<obj>.event()\par
+	\par
+<obj> must be a valid object\par
+\par
+Runs the event associated with that object, if there exists one.\par
+\par
+\par
+\b\fs28 add:\b0\fs20\par
+\par
+	<container>.add( <obj> )\par
+	\par
+<container> must be a valid container type object; container, room, agent, @player.\par
+<obj> must be a valid object\par
+\par
+Adds the object <obj> to the container's inventory.  Note that <obj> must have been previously created or removed from elsewhere.\par
+\par
+To create a new object on the spot, the .new instruction may be embedded:\par
+\par
+<container>.add( .new( id ) )\par
+\par
+\par
+\par
+\b\fs28 inv:\b0\fs20\par
+\par
+	<container>.inv \{ \}\par
+	\par
+<container> must be a valid container type object; cointainer, room, agent, @player\par
+\par
+Loops through the contents of a container's inventory, returning each object in @lastobject.  The last object returned, or if the container is empty, @lastobject.id will equal zero.\par
+Standard loop functions apply, .break, .breakif, .continue, .continueif\par
+\par
+After the completion of the loop, @lastobject will be restored to its original value before the loop.\par
+\par
+\par
+\b\fs28 remove:\b0\fs20\par
+\par
+	var = <container>.remove( id )\par
+	\par
+<container> must be a valid container type object; container, room, agent, @player\par
+\par
+Removes from a container's inventory any one object matching the id, returns that object.  Returns zero if object doesn't exist in inventory.\par
+\par
+\par
+\par
+\b\fs28 write:\b0\fs20\par
+\par
+	<obj>.write( <expr>, <expr>[] )\par
+	\par
+Legal in Arayna runtime section.\par
+\par
+<obj> must be a file object previously opened with .openfile or .newfile\par
+\par
+Writes to an open file object, <expr> may be any valid arayna expression consisting of strings, integers and real values.  No other type is supported for writing to file.\par
+Saving is not automatic, to save the file to disc, use the save function.\par
+When complete, file should be closed using the close function.\par
+\par
+See also:\par
+	.newfile\par
+	.openfile\par
+	<obj>.read\par
+	<obj>.close\par
+	<obj>.save\par
+	<obj>.seek\par
+\par
+	\par
+\par
+\b\fs28 read:\b0\fs20\par
+\par
+	<obj>.read( variant, variant[] )\par
+\par
+Legal in Arayna runtime section.\par
+\par
+<obj> must be a file object previously opened with .openfile or .newfile\par
+\par
+Reads a file and loads variants with each object in the same order in which it was written to file.\par
+When complete, file should be closed using the close function. \par
+\par
+See also:\par
+	.newfile\par
+	.openfile\par
+	<obj>.write\par
+	<obj>.close\par
+	<obj>.save\par
+	<obj>.seek\par
+\par
+\par
+\par
+\b\fs28 save:\b0\fs20\par
+\par
+	<obj>.save( "filename" )\par
+	\par
+Legal in Arayna runtime section.\par
+\par
+<obj> must be a file object previously opened with .openfile or .newfile\par
+\par
+Saves the contents of the file object to a file.  Filename is specified as a string.\par
+\par
+See also:\par
+	.newfile\par
+	.openfile\par
+	<obj>.write\par
+	<obj>.read\par
+	<obj>.close\par
+	<obj>.seek\par
+\par
+\par
+\b\fs28 close:\b0\fs20\par
+\par
+	<obj>.close()\par
+	\par
+Legal in Arayna runtime section.\par
+\par
+<obj> must be a file object previously opened with .openfile or .newfile\par
+\par
+Closes the file and frees memory associated with it.\par
+\par
+See also:\par
+	.newfile\par
+	.openfile\par
+	<obj>.write\par
+	<obj>.read\par
+	<obj>.save\par
+	<obj>.seek\par
+\par
+\par
+\b\fs28 seek:\b0\fs20\par
+\par
+	<obj>.seek( index )\par
+	\par
+Legal in Arayna runtime section.\par
+\par
+<obj> must be a file object previously opened with .openfile or .newfile\par
+index is 0-based line-index into the file object, 0 = 1st line\par
+Each line in a file object represents 1 item\par
+\par
+Seeks the file object index cursor to the specified line index.  All further reading and writing will occur at that index.\par
+\par
+See also:\par
+	.newfile\par
+	.openfile\par
+	<obj>.write\par
+	<obj>.read\par
+	<obj>.save\par
+	<obj>.close\par
+\par
+\par
+\par
+\b\fs28 Internal Variables:\b0\fs20\par
+\par
+	Arayan has various internal variables and constants for easy access to the internal mechanism and declared objects.  All such internal variables and constants begin with '@' atsign.\par
+Here is an exhaustive list of all the available\par
+\par
+@moves\par
+	keeps track of the total number of moves made or attempted by the player\par
+	May be changed like a normal variant.\par
+	\par
+@unlimited\par
+	A constant used by some definitions.  Signifies an unlimited amount of an item.\par
+	\par
+@player\par
+	this is the player object.  May be used like any object.\par
+	this contains the player name (if any) and player inventory.\par
+	\par
+@area\par
+	this is an object of the current area.\par
+	Contains the area id, label and event.\par
+	\par
+@arayna\par
+	this returns the main arayna object.  this contains the module\par
+	name, module description and root event.\par
+	\par
+@fromroom\par
+	this will contain the previous room object which is the room the player\par
+	came from before entering the current room.  May be zero if this is the very first room.\par
+	contains id, label, description, event\par
+\par
+@thisroom\par
+	this is an object of the current room which the player occupies.\par
+	contains id, label, description, event\par
+\par
+@lastaction, @lastverb\par
+	these are synonymous.\par
+	an integer which contains the last action performed by the player\par
+	\par
+@lastobject\par
+	the most recent object that the player manipulated by an action.\par
+	may contain zero.\par
+	\par
+@this\par
+	valid in event sections, this will contain the object of the current\par
+	executing event.\par
+	\par
+<room> = @room.id\par
+	this is used to retreive a defined room object.  Not useful by itself,\par
+	it	requires an id of a room to be retreived.  Returns the room object.\par
+	\par
+@counter\par
+	valid only in a .const section.  This keeps track of constant valuation\par
+	automation.  The use of it is optional, may be reset here to any initial\par
+	value.\par
+	\par
+@added\par
+	if an object has just been added to the inventory of any container, this\par
+	variable will contain the object pointer of that container.\par
+	in event terms, this event is run after the interrupt and verbevent,\par
+	but before the object event.\par
+	 \par
+\par
+@removed\par
+	if an object has just been removed from the inventory of any container,\par
+	this variable will contain the object pointer of that container.\par
+	in event terms, this event is run after the interrupt and verbevent,\par
+	but before the object event.\par
+\par
+\par
+\b\fs28 Update Log:\b0\fs20\par
+\par
+0.90.00\par
+	restructuring complete\par
+\par
+0.50.00+\par
+	Restructuring begins\par
+\par
+ 

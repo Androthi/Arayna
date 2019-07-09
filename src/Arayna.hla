@@ -1,0 +1,2900 @@
+program Arayna;
+
+#include ("src/arayna.hhf")
+?@nodisplay := true;
+
+readonly
+
+	RichEditDLL		:mzstr ("riched20.dll");	
+	introTxt: string := nl "Ready, open a module to start" nl;
+
+
+	SendStr: procedure ( hwnd:dword; msg:dword; replace:dword; str:string );
+			@stdcall; @external( "__imp__SendMessageA@16" );
+
+	szfont			:mzstr ("Courier New");
+	
+
+static
+	align(4);
+
+//>
+// for debug
+	// mod currently being tested
+	
+	//nowplaying	:string := "concept.mod";
+	//nowplaying	:string := "tiny.mod";
+	//nowplaying	:string := "demo.mod";
+	//nowplaying		:string := "test.mod";
+	//nowplaying		:string := "hlaadventure.mod";
+	//nowplaying		:string := "giogi_01.mod";
+
+	homepath	:str.strvar( 300 );
+
+
+const	
+	// dialog & control constants
+	
+	// L-CLICK menu itmes start at ID 12000
+	IDM_GET			:= 12000;
+	IDM_DROP			:= 12001;
+	IDM_DRINK		:= 12002;
+	IDM_EAT			:= 12003;
+	IDM_EXAMINE		:= 12004;
+	IDM_SEARCH		:= 12005;
+	IDM_WIELD		:= 12006;
+	IDM_UNWIELD		:= 12007;
+	IDM_ACTIVATE	:= 12008;
+	IDM_DEACTIVATE	:= 12009;
+	IDM_TRADE		:= 12010;
+	IDM_CLIMB		:= 12011;
+	IDM_WEAR			:= 12012;
+	IDM_REMOVE		:= 12013;
+	IDM_TALK			:= 12014;
+	IDM_USE			:= 12015;
+	IDM_PUSH			:= 12016;
+	IDM_PULL			:= 12017;
+	IDM_OPEN			:= 12018;
+	IDM_CLOSE		:= 12019;
+	IDM_BREAK		:= 12020;
+	IDM_UNLOCK		:= 12021;
+	IDM_LOCK			:= 12022;
+	IDM_READ			:= 12023;
+	IDM_ATTACK		:= 12024;
+	IDM_BUY			:= 12025;
+	IDM_QUERY		:=	12026;
+	IDM_SELL			:= 12027;
+	IDM_STEAL		:= 12028;
+	IDM_ASK			:= 12029;
+	IDM_SAY			:= 12030;
+	IDM_SING			:= 12031;
+	IDM_TURNLEFT	:= 12032;
+	IDM_TURNRIGHT	:= 12033;
+	IDM_CLEAN		:= 12034;
+	IDM_TIE			:= 12035;
+	IDM_UNTIE		:= 12036;
+	IDM_SHOOT		:= 12037;
+	IDM_SWIM			:= 12038;
+	IDM_USEWITH		:= 12039;
+	IDM_USEON		:= 12040;
+	IDM_COMBINE		:= 12041;
+	IDM_TARGET		:= 12042;
+	IDM_PRESS		:= 12043;
+	IDM_LOOK			:= 12044;
+			
+
+readonly	// message tables.  change this section to static if you wish to change pointers during run-time
+
+	// verbs
+	Get_str		:string := "Get";
+	Drop_str	:string := "Drop";
+	Drink_str	:string := "Drink";
+	Eat_str		:string := "Eat";
+	Examine_str	:string := "Examine";
+	Search_str	:string := "Search";
+	Wield_str	:string := "Wield";
+	Unwield_str	:string := "Unwield";
+	Activate_str	:string := "Activate";
+	Deactivate_str	:string := "Extinguish";
+	Wear_str	:string := "Wear";
+	Remove_str	:string := "Remove";
+	Talk_str	:string := "Talk";
+	Use_str		:string := "Use";
+	Push_str	:string := "Push";
+	Pull_str	:string := "Pull";
+	Open_str	:string := "Open";
+	Close_str	:string := "Close";
+	Unlock_str	:string := "Unlock";
+	Lock_str	:string := "Lock";
+	Break_str	:string := "Break";
+	Read_str	:string := "Read";
+	Attack_str	:string := "Attack";
+	Climb_str	:string := "Climb";
+	Buy_str	:string	:= "Buy";
+	Sell_str	:string := "Sell";
+	Query_str	:string := "Query";
+	Steal_str	:string := "Steal";
+	Ask_str	:string := "Ask";
+	Say_str	:string := "Say";
+	Sing_str	:string := "Sing";
+	Turnleft_str	:string := "Turn Left";
+	Turnright_str	:string := "Turn Right";
+	Clean_str	:string := "Clean";
+	Tie_str	:string := "Tie";
+	Untie_str	:string := "Untie";
+	Shoot_str	:string := "Shoot";
+	Swim_str	:string := "Swim";
+	Usewith_str	:string := "Use With...";
+	Useon_str	:string := "Use On...";
+	Combine_str	:string := "Combine...";
+	Target_str	:string := "Target...";
+	Press_str	:string := "Press";
+	Look_str		:string := "Look";
+	
+	ClassName	:string:="MAINCLASS";		// you may substitude your own name for "MAINCLASS"
+	AppName		:string:="Arayna";		// you may substitude your own name for "TEMPAPP"
+	
+
+	// main window message table
+	
+	message_table	:MsgProcPtr_t; @nostorage;
+		MsgProcPtr_t	
+			MsgProcPtr_t:[ w.WM_COMMAND,	&Msg_Command	],
+			MsgProcPtr_t:[ w.WM_DESTROY,	&Msg_Destroy	],
+			MsgProcPtr_t:[ w.WM_CLOSE,		&Msg_Close		],
+			MsgProcPtr_t:[ w.WM_SIZE,		&Msg_Size		],
+			MsgProcPtr_t:[ w.WM_INITDIALOG,	&Msg_InitDialog	],
+			MsgProcPtr_t:[ ARAYNA_CLS,		&Msg_ClearWrite ],
+			MsgProcPtr_t:[ ARAYNA_RESET,	&Msg_Reset		],
+			
+			// add more messages above this line
+			MsgProcPtr_t:[ 0, NULL ];	// This marks the end of the list.
+
+	
+	// WM_COMMAND message table, wparam items go here
+	command_table	:MsgProcPtr_t; @nostorage;
+		MsgProcPtr_t
+
+			MsgProcPtr_t:[ IDM_FILE_QUIT,	&Cmd_File_Quit	],
+			MsgProcPtr_t:[ IDM_FILE_OPENMOD,&Cmd_File_OpenMod],
+
+			MsgProcPtr_t:[ IDM_GAME_INV,	&Cmd_Game_Inv	],
+			MsgProcPtr_t:[ IDM_GAME_SAVE,	&Cmd_Game_Save	],
+			MsgProcPtr_t:[ IDM_GAME_LOAD,	&Cmd_Game_Load	],
+
+			MsgProcPtr_t:[ IDM_FONT,		&Cmd_Font	],
+			MsgProcPtr_t:[ IDM_BKG_COLOR,	&Cmd_BkgColor ],
+			MsgProcPtr_t:[ IDM_OPEN_LAST,	&Cmd_OpenLast ],
+			
+			MsgProcPtr_t:[ IDM_ABOUT,		&Cmd_Help_About	],
+			MsgProcPtr_t:[ IDM_MODULEINFO,	&Cmd_Help_Module],
+			//MsgProcPtr_t:[ IDM_HISTORY,	&Cmd_Help_History],
+			
+			MsgProcPtr_t:[ IDM_DBG_TELEPORT,&Cmd_Dbg_Teleport],
+			MsgProcPtr_t:[ IDM_DBG_SPAWN,	&Cmd_Dbg_Spawn	],
+			MsgProcPtr_t:[ IDM_DBG_LIST_ROOMS,	&Cmd_Dbg_Listrooms	],
+			MsgProcPtr_t:[ IDM_DBG_LISTOBJ,	&Cmd_Dbg_Listobj	],
+			
+			// tracked menu items
+			MsgProcPtr_t:[ IDM_GET,			&Cmd_Action_Get	],
+			MsgProcPtr_t:[ IDM_USE,			&Cmd_Action_Use ],
+			MsgProcPtr_t:[ IDM_EXAMINE,		&Cmd_Action_Examine],
+			MsgProcPtr_t:[ IDM_READ,		&Cmd_Action_Examine],
+			MsgProcPtr_t:[ IDM_DROP,		&Cmd_Action_Drop],
+			MsgProcPtr_t:[ IDM_SEARCH,		&Cmd_Action_Search],
+			MsgProcPtr_t:[ IDM_EAT,			&Cmd_Action_Eat],
+			MsgProcPtr_t:[ IDM_DRINK,		&Cmd_Action_Drink],
+			MsgProcPtr_t:[ IDM_PUSH,		&Cmd_Action_Push	],
+			MsgProcPtr_t:[ IDM_PULL,		&Cmd_Action_Pull	],
+			MsgProcPtr_t:[ IDM_ACTIVATE,	&Cmd_Action_Activate],
+			MsgProcPtr_t:[ IDM_DEACTIVATE,	&Cmd_Action_Deactivate],
+			MsgProcPtr_t:[ IDM_REMOVE,		&Cmd_Action_Remove],
+			MsgProcPtr_t:[ IDM_WEAR,		&Cmd_Action_Wear],
+			MsgProcPtr_t:[ IDM_WIELD,		&Cmd_Action_Wield],
+			MsgProcPtr_t:[ IDM_UNWIELD,		&Cmd_Action_Unwield],
+			MsgProcPtr_t:[ IDM_TALK,		&Cmd_Action_Talk],
+			MsgProcPtr_t:[ IDM_OPEN,		&Cmd_Action_Open],
+			MsgProcPtr_t:[ IDM_CLOSE,		&Cmd_Action_Close],
+			MsgProcPtr_t:[ IDM_UNLOCK,		&Cmd_Action_Unlock],
+			MsgProcPtr_t:[ IDM_LOCK,		&Cmd_Action_Lock],
+			MsgProcPtr_t:[ IDM_BREAK,		&Cmd_Action_Break],
+			MsgProcPtr_t:[ IDM_CLIMB,		&Cmd_Action_Climb],
+			MsgProcPtr_t:[ IDM_ATTACK,		&Cmd_Action_Attack],
+			MsgProcPtr_t:[ IDM_BUY,			&Cmd_Action_Buy],
+			MsgProcPtr_t:[ IDM_SELL,		&Cmd_Action_Sell],
+			MsgProcPtr_t:[ IDM_QUERY,		&Cmd_Action_Query],
+			MsgProcPtr_t:[ IDM_STEAL,		&Cmd_Action_Steal ],
+			MsgProcPtr_t:[ IDM_ASK,			&Cmd_Action_Ask ],
+			MsgProcPtr_t:[ IDM_SAY,			&Cmd_Action_Say ],
+			MsgProcPtr_t:[ IDM_SING,		&Cmd_Action_Sing ],
+			MsgProcPtr_t:[ IDM_TURNLEFT,	&Cmd_Action_Turnleft ],
+			MsgProcPtr_t:[ IDM_TURNRIGHT,	&Cmd_Action_Turnright ],
+			MsgProcPtr_t:[ IDM_CLEAN,		&Cmd_Action_Clean ],
+			MsgProcPtr_t:[ IDM_TIE,			&Cmd_Action_Tie ],
+			MsgProcPtr_t:[ IDM_UNTIE,		&Cmd_Action_Untie ],
+			MsgProcPtr_t:[ IDM_SHOOT,		&Cmd_Action_Shoot ],
+			MsgProcPtr_t:[ IDM_PRESS,		&Cmd_Action_Press ],
+			MsgProcPtr_t:[ IDM_SWIM,		&Cmd_Action_Swim ],
+			MsgProcPtr_t:[ IDM_USEWITH,	&Cmd_Action_Usewith ],
+			MsgProcPtr_t:[ IDM_USEON,		&Cmd_Action_Useon ],
+			MsgProcPtr_t:[ IDM_COMBINE,	&Cmd_Action_Combine ],
+			MsgProcPtr_t:[ IDM_TARGET,		&Cmd_Action_Target ],
+			MsgProcPtr_t:[ IDM_LOOK,		&Cmd_Action_Look ],
+
+			// add more messages above this line						
+			MsgProcPtr_t:[ 0,				NULL			];
+
+procedure Error ( err_msg:string );
+	// fatal err
+begin Error;
+
+	w.MessageBox(NULL,err_msg,"ERROR",w.MB_OK | w.MB_ICONERROR );
+	
+	cmp(hwnd,0);
+	je _nowindow;
+	w.PostQuitMessage(0);
+	exit Error;
+	
+_nowindow:
+	xor(eax,eax);
+
+end Error;
+
+procedure Error2 (err_msg:string);
+	// non fatal err
+begin Error2;
+	w.MessageBox(NULL,err_msg,"WARNING",w.MB_OK | w.MB_ICONERROR );
+end Error2;
+
+procedure UpdateNavigation (cur_room:dword in esi); @noframe;
+	// grab current room, cycle through
+	// all the exits and determine which
+	// navigation buttons to activate
+	// entry: ESI = pointer to current room (room object)
+begin UpdateNavigation;
+	//dbg.put ("UpdateNavigation :", esi);
+	if (esi) then
+		mov (roomesi.north, eax);
+		w.EnableWindow (hnorth, eax);
+		mov (roomesi.south, eax);
+		w.EnableWindow (hsouth, eax);
+		mov (roomesi.east, eax);
+		w.EnableWindow (heast, eax);
+		mov (roomesi.west, eax);
+		w.EnableWindow (hwest, eax);
+		mov (roomesi.northEast, eax);
+		w.EnableWindow (hnortheast, eax);
+		mov (roomesi.northWest, eax);
+		w.EnableWindow (hnorthwest, eax);
+		mov (roomesi.southEast, eax);
+		w.EnableWindow (hsoutheast, eax);
+		mov (roomesi.southWest, eax);
+		w.EnableWindow (hsouthwest, eax);
+		mov (roomesi.up, eax);
+		w.EnableWindow (hup, eax);
+		mov (roomesi.down, eax);
+		w.EnableWindow (hdown, eax);
+	else
+		w.EnableWindow (hnorth, false);
+		w.EnableWindow (hsouth, false);
+		w.EnableWindow (heast, false);
+		w.EnableWindow (hwest, false);
+		w.EnableWindow (hnortheast, false);
+		w.EnableWindow (hnorthwest, false);
+		w.EnableWindow (hsoutheast, false);
+		w.EnableWindow (hsouthwest, false);
+		w.EnableWindow (hup, false);
+		w.EnableWindow (hdown, false);
+		
+	endif;
+	//dbg.put ("/UpdateNavigation");
+	ret();
+end UpdateNavigation;
+
+procedure SetInfo; @noframe;
+	
+begin SetInfo;
+//dbg.put ("setInfo");
+USE (EAX, EBX, ESI, EDI);
+	str.cpy ("", strbuf);
+	if (game.status) then
+		mov (game.curroom, ebx); //dbg.put ("room :", ebx );
+		if( ! ebx ) then
+			mov( game.null_room, ebx );
+		endif;
+		mov( roomebx.group, ebx); //dbg.put ("area = ", ebx);
+		if( ebx ) then
+			if (objectList.findNodeID (ebx)) then
+				mov (listnodeeax.obj, eax);
+				loadString (areaeax.lbl, buffer_str);
+				if( str.length( buffer_str )) then
+					str.put( strbuf, '[', buffer_str, "] ");
+				endif;
+			endif;
+		endif;
+		mov( game.curroom, ebx);
+		loadString( roomebx.lbl, buffer_str );
+		if( str.length( buffer_str )) then
+			str.put2( strbuf, buffer_str );
+		endif;
+	
+	endif;
+	w.SendMessage (hinfo, w.WM_SETTEXT, 0, strbuf);
+ENDUSE;
+//dbg.put ("/setInfo");
+	ret();
+end SetInfo;
+
+procedure premoveEvents; @noframe;
+// space for causing game-events right before EnterCurrentRoom is processed
+begin premoveEvents;
+	if( game.intMove ) then
+		executeSection( "intmov@section" );
+	endif;
+	ret();
+end premoveEvents;
+
+procedure verbEvent; @noframe;
+begin verbEvent;
+	//dbg.put("verbEvent");
+	if( game.verbEvent ) then
+		executeSection( "verbevent@section" );
+	endif;
+	dbg.put("/verbevent");
+	ret();
+end verbEvent;
+
+
+procedure objectInterrupt; @noframe;
+begin objectInterrupt;
+	
+	if( game.intEvent ) then
+		executeSection( "intevent@section" );
+	endif;
+	ret();
+end objectInterrupt;
+
+
+procedure EnterCurrentRoom; @noframe;
+begin EnterCurrentRoom;
+	//dbg.put ("EnterCurrentRoom");
+	if (game.status) then
+		USE (esi, ebx, edi, ecx);
+
+			
+			// since moves starts with '0', increase the moves before
+			// doing anything else
+			
+			mov( 1, return_attr.id );
+			premoveEvents();
+			if( return_attr.id = 0 ) then
+				// return 0 = don't process anything else
+				jmp done;
+			endif;
+
+			// cancel dialog mode if there is one
+			// there could be problems if this is not done
+			// eg: player uses a teleport item from inventory
+			// while in dialog mode
+			// this is done after move interrupt to give the
+			// script author some leeway
+			if( game.status = mode_dialog ) then
+				mov( mode_normal, game.status );
+			endif;
+
+
+			inc (game.moves);
+			
+			mov (game.curroom, ecx);		
+			(type arayna_roomClass [ecx]).enterRoom();
+			if (game.status) then
+		
+				
+				mov( game.curroom, ecx );
+				mov( roomecx.group, ecx );
+				objectList.findNodeID( ecx );
+				mov( listnodeeax.obj, ecx );
+
+				areaecx.runEvent();
+				
+				mov( game.araynaObj, ecx );
+				if (ecx) then
+					baseecx.runEvent();
+				endif;
+			endif;		
+			
+			done:
+		ENDUSE;
+	endif;
+	//dbg.put ("/EnterCurrentRoom");
+	ret();
+end EnterCurrentRoom;
+
+procedure checkInterrupt; @noframe;
+begin checkInterrupt;
+	mov( 1, return_attr.id );
+	objectInterrupt();
+	if( return_attr.id ) then
+		clc();
+	else
+		stc();
+	endif;
+	ret();
+end checkInterrupt;
+
+
+procedure useObject ( obj:dword);	
+begin useObject;
+	//dbg.put ("useObject");
+USE( EBX );
+	mov (obj, ebx);
+	
+	objebx.runEvent();
+	cmp( eax, gen_error );	je done;
+	
+	if (testnz ( rtti_item, objebx.rtti)) then
+
+		//dbg.put ("using item");
+		// if it has a max charge, this is a charged item, use one up.
+		if( itemebx.charges > 0 ) then
+			itemebx.useCharge();
+			mov( eax, ecx );
+			if (! ecx) then
+				
+				if (itemebx.maxcharge = 0) then
+
+					if( mov( game.view, eax ) = hlistdisp ) then
+						mov (game.curroom, esi);
+					else
+						mov (game.pc, esi);
+					endif;
+					containeresi.removeObj (ebx);
+					containeresi.inventory();
+					push (eax);
+					loadString (objeax.lbl, buffer_str );
+					ui.write ( buffer_str, " has been used up",nl nl);
+					pop (eax);
+					mem.free (eax);
+					mov (NULL, game.lastobject);
+				endif;
+			endif;
+		endif;
+	endif;
+	done:
+ENDUSE;
+	//dbg.put ("/useObject");
+end useObject;
+
+
+procedure Setup_Action_Menu ( theObject:dword; thelist:dword);
+	// setup the r-click context menu depending on the 
+	// object flags and current view mode.
+
+begin Setup_Action_Menu;
+USE (EBX, EDI, ECX, ESI);
+	//dbg.put ("Setup_Action_Menu");
+	mov (theObject, ebx);
+
+	objebx.getVerbs();
+	mov (&id_attrib, edi);
+
+	//dbg.put ("verbs: ",nl, (type dword [edi]), nl, (type dword [edi+4]), nl, (type dword [edi+8]), nl, (type dword [edi+12]) );
+	// actions that are common to items in any view
+	if ( tbt (act_examine, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+			 w.MF_STRING, IDM_EXAMINE, Examine_str);
+	endif;
+	
+	if( tbt( act_query, [edi] )) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+			 w.MF_STRING, IDM_QUERY, Query_str);
+	endif;
+	
+	if ( tbt (act_search, [edi])) then
+		w.InsertMenu  (hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+			w.MF_STRING, IDM_SEARCH, Search_str);
+	endif;
+	
+	if ( tbt (act_talk, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+			 w.MF_STRING, IDM_TALK, Talk_str);
+	endif;
+
+	if ( tbt (act_activate, [edi])) then
+		if (testz (is_on, objebx.state)) then
+			w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+				 w.MF_STRING, IDM_ACTIVATE, Activate_str);
+		endif;	
+	endif;
+	
+	if ( tbt (act_deactivate, [edi])) then
+		if (testnz (is_on, objebx.state)) then
+			w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+				w.MF_STRING, IDM_DEACTIVATE, Deactivate_str);
+		endif;
+	endif;
+	
+	if ( tbt (act_read, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+			w.MF_STRING, IDM_READ, Read_str);
+	endif;
+	
+	if ( tbt (act_break, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+				 w.MF_STRING, IDM_BREAK, Break_str);
+	endif;
+	
+	if ( tbt(act_climb, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+				 w.MF_STRING, IDM_CLIMB, Climb_str);		
+	endif;
+
+	if ( tbt (act_use, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_USE, Use_str);			
+	endif;
+
+	if ( tbt (act_ask, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_ASK, Ask_str);			
+	endif;
+
+	if ( tbt (act_say, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_SAY, Say_str);			
+	endif;
+
+	if ( tbt (act_press, [edi])) then
+		if (testz (is_on, objebx.state)) then
+			w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+				 w.MF_STRING, IDM_PRESS, Press_str);
+		endif;	
+	endif;
+
+	if ( tbt (act_sing, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_SING, Sing_str);			
+	endif;
+
+	if ( tbt (act_turnleft, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_TURNLEFT, Turnleft_str);			
+	endif;
+
+	if ( tbt (act_turnright, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_TURNRIGHT, Turnright_str);			
+	endif;
+
+	if ( tbt (act_clean, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_CLEAN, Clean_str);			
+	endif;
+
+	if ( tbt (act_tie, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_TIE, Tie_str);			
+	endif;
+
+	if ( tbt (act_untie, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_UNTIE, Untie_str);			
+	endif;
+
+	if ( tbt (act_shoot, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_SHOOT, Shoot_str);			
+	endif;
+
+	if ( tbt (act_swim, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_SWIM, Swim_str);			
+	endif;
+	
+	if ( tbt (act_look, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_LOOK, Look_str);			
+	endif;
+
+
+	if ( tbt (act_usewith, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_USEWITH, Usewith_str);			
+	endif;
+
+	if ( tbt (act_useon, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_USEON, Useon_str);			
+	endif;
+
+	if ( tbt (act_combine, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_COMBINE, Combine_str);			
+	endif;
+
+	if ( tbt (act_target, [edi])) then
+		w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_TARGET, Target_str);			
+	endif;
+
+
+	
+	if ( testnz (rtti_container, objebx.rtti) ) then		
+		mov (objebx.state, ecx);
+	
+		// this object is an arayna_containerClass of some sort
+		//dbg.put ("Is container");
+		if ( testnz (is_locked, ecx) ) then
+			//dbg.put ("locked");
+			if ( tbt ( act_unlock, [edi])) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+							 w.MF_STRING, IDM_UNLOCK, Unlock_str);					
+			endif;
+
+			
+		elseif ( testnz (is_closed, ecx) ) then
+			
+			if ( tbt ( act_open, [edi])) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+							 w.MF_STRING, IDM_OPEN, Open_str);					
+			endif;
+			if ( tbt ( act_lock, [edi])) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+							 w.MF_STRING, IDM_LOCK, Lock_str);					
+			endif;
+
+		else
+				
+			if ( tbt ( act_close, [edi])) then
+					w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+						 w.MF_STRING, IDM_CLOSE, Close_str);					
+			endif;
+				
+		endif;
+		
+		if ( tbt (act_break, [edi])) then
+			w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_BREAK, Break_str);		
+		endif;
+
+	endif;
+	
+	mov( thelist, eax );
+	if( eax = hlistdisp ) then
+		
+		// display list
+		if( tbt (act_steal, [edi])) then
+			w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+				 w.MF_STRING, IDM_STEAL, Steal_str);
+		endif;
+		
+		if( tbt (act_buy, [edi])) then
+			
+			mov (game.curroom, eax);		
+			if( testnz( is_shop, roomeax.state) ) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					 w.MF_STRING, IDM_BUY, Buy_str);
+			else
+				jmp do_noshopdisp;
+			endif;
+		
+		else
+			do_noshopdisp:
+			if ( tbt ( act_get, [edi]) ) then
+			w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+				 w.MF_STRING, IDM_GET, Get_str);
+			endif;
+				 		
+			if ( tbt (act_push, [edi])) then
+				
+				if (testz ( is_on, objebx.state)) then  
+					w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+						 w.MF_STRING, IDM_PUSH, Push_str);
+				endif;
+			endif;
+			
+			if ( tbt (act_pull, [edi])) then
+				if (testnz ( is_on, objebx.state)) then
+					w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+						w.MF_STRING, IDM_PULL, Pull_str);
+				endif;
+			endif;
+			
+			if ( tbt (act_attack, [edi])) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+					w.MF_STRING, IDM_ATTACK, Attack_str);
+			endif;
+
+			if ( tbt (act_drink, [edi]) ) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+				 w.MF_STRING, IDM_DRINK, Drink_str);			
+			endif;
+			if ( tbt (act_eat, [edi]) ) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+				 w.MF_STRING, IDM_EAT, Eat_str);
+			endif;
+			
+		endif;
+		
+	elseif( eax = hlistinv ) then
+
+		// inventory list
+		
+		if ( tbt (act_drink, [edi]) ) then
+			w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+			 w.MF_STRING, IDM_DRINK, Drink_str);			
+		endif;
+		if ( tbt (act_eat, [edi]) ) then
+			w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+				 w.MF_STRING, IDM_EAT, Eat_str);
+		endif;
+	
+		if( testnz( is_on, objebx.state ) ) then
+			
+			if ( tbt (act_unwield, [edi])) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+							 w.MF_STRING, IDM_UNWIELD, Unwield_str);			
+			endif;
+
+			if ( tbt (act_remove, [edi])) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+							 w.MF_STRING, IDM_REMOVE, Remove_str);			
+			endif;
+
+		else
+			
+			if ( tbt (act_wield, [edi])) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+							 w.MF_STRING, IDM_WIELD, Wield_str);			
+			endif;
+			
+			
+			if ( tbt (act_wear, [edi])) then
+				w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+							 w.MF_STRING, IDM_WEAR, Wear_str);			
+			endif;
+
+			// can't drop an object unless it's off
+			if( tbt( act_sell, [edi])) then
+				mov( game.curroom, eax );
+				if( testnz( is_shop, roomeax.state) ) then
+					w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+							 w.MF_STRING, IDM_SELL, Sell_str);
+				else
+					jmp do_noshopinv;
+				endif;
+				
+			else
+				do_noshopinv:
+				if ( tbt ( act_drop, [edi])) then
+					w.InsertMenu ( hmenu, 0, w.MF_BYPOSITION | w.MF_ENABLED |
+							 w.MF_STRING, IDM_DROP, Drop_str);
+				endif;
+				
+			endif;
+		
+		endif;
+		
+
+	else
+		
+		showerror( "Internal error: unknown list in 'Setup_Action_Menu'" );
+	
+	endif;
+_endit:	
+ENDUSE;
+//dbg.put ("/Setup_Action_Menu");
+end Setup_Action_Menu;
+
+
+//=== NOW IT'S LISTBOX! PROCS ==== \\
+
+procedure ListView_Clear( hlist:dword );
+	// clear out the list box
+begin ListView_Clear;
+//dbg.put ("listview clear");
+	
+	w.SendMessage( hlist, w.LB_RESETCONTENT, 0, 0 );
+	
+	//w.SendMessage( hlist, w.LVM_DELETEALLITEMS, 0, 0);
+	//mem2.fillMem (&curItem, @size(w.LV_ITEM), 0);
+end ListView_Clear;
+
+procedure ListView_Add (hlist:dword; theObject:dword; objectName:string); 
+	// add an item to the list view
+	
+begin ListView_Add;
+	
+	//dbg.put("adding listbox");
+	w.SendMessage( hlist, w.LB_ADDSTRING, 0, objectName );
+	w.SendMessage( hlist, w.LB_SETITEMDATA, eax, theObject );
+
+end ListView_Add;
+
+procedure ListView_Notify  ( hwin:dword; wparam:dword; lparam:dword );
+
+begin ListView_Notify;
+	pushabi;
+	//dbg.enters ("ListView_Notify");
+	
+	w.SendMessage( lparam, w.LB_GETCURSEL, 0, 0 );
+	cmp( eax, w.LB_ERR );
+	je done;
+	w.SendMessage( lparam, w.LB_GETITEMDATA, eax, 0 );
+	mov( eax, ebx );
+	if( ebx ) then
+		
+		mov( lparam, eax );
+//		if( eax = hlistdisp ) then
+//			dbg.put("notify from disp");
+//		elseif( eax = hlistcmd ) then
+//			dbg.put("notify from cmd");
+//		elseif( eax = hlistinv ) then
+//			dbg.put("notify from inv");
+//		endif;
+//		
+		if( game.status = mode_usewith ) then
+			
+			// ignore command window selections
+			if( eax != hlistcmd ) then
+				mov( mode_normal, game.status );
+				mov( ebx, game.lastobject );	// target object in @lastobject
+				mov( curItem, ebx );				// message sent to current object
+				checkInterrupt();	jc done;
+				verbEvent();
+				baseebx.runEvent();
+				
+			endif;
+
+		elseif( eax = hlistcmd ) then
+			
+			loadString( topicebx.desc, buffer_str );
+			if( str.length( buffer_str )) then
+				ui.write( buffer_str, nl nl );
+			endif;
+
+			baseebx.runEvent();
+
+		elseif( eax = hlistdisp && game.status = mode_dialog ) then
+			
+			mov( ebx, curItem );	
+			loadString( topicebx.lbl, buffer_str );
+			if( str.length( buffer_str )) then
+				ui.write(nl, sep, nl, buffer_str, nl nl );
+			endif;
+			
+			loadString( topicebx.desc, buffer_str );
+			if( str.length( buffer_str )) then
+				ui.write(':', buffer_str, nl nl);
+			endif;
+			
+			baseebx.runEvent();
+			
+		else
+			
+			mov( ebx, curItem );
+			w.GetCursorPos( &pt );
+			w.DestroyMenu (hmenu);		//clear out the old menu.
+			mov ( w.CreatePopupMenu(), hmenu);
+			Setup_Action_Menu( ebx, game.view );
+			w.TrackPopupMenu( hmenu, w.TPM_CENTERALIGN | w.TPM_RIGHTBUTTON,
+							pt.x, pt.y, 0, hwnd, NULL );
+
+		endif;
+		
+	endif;
+	
+	done:
+	//dbg.exits ("ListView_Notify");
+	popabi;
+end ListView_Notify;
+
+//================================================================
+
+procedure SetWindowTitle ( title_msg:string);
+begin SetWindowTitle;
+	str.put (strbuf, AppName, " [", title_msg, "]");
+	w.SetWindowText(hwnd, strbuf);
+end SetWindowTitle;
+
+
+procedure WriteError ( err_msg:string);
+	static			
+		convert	:str.strvar (20);
+
+begin WriteError;
+
+	mov (filenode, ebx);
+	conv.u32ToStr (genLine, 10, ' ', convert);
+	str.trim (convert);
+	SendStr	(hedit, w.EM_REPLACESEL, false, nl );
+	SendStr (hedit, w.EM_REPLACESEL, false, "Error in" nl "File  :" );
+	SendStr (hedit, w.EM_REPLACESEL, false, filenodeebx.filename);
+	SendStr (hedit, w.EM_REPLACESEL, false, nl "Line :" );
+	SendStr (hedit, w.EM_REPLACESEL, false, convert );
+	SendStr	(hedit, w.EM_REPLACESEL, false, nl );
+	SendStr	(hedit, w.EM_REPLACESEL, false, err_msg );
+	SendStr	(hedit, w.EM_REPLACESEL, false, nl );
+	mov (gen_error, eax);
+	stc();
+	
+end WriteError;
+
+procedure WriteMain ( _msg_:string);
+	
+begin WriteMain;
+USE (EAX, ECX, EBX, EDX);
+	//dbg.put("writemain :", _msg_ );
+	SendStr (hedit, w.EM_REPLACESEL, false, _msg_ );
+	w.SendMessage( hedit, w.EM_SCROLLCARET, 0, 0 );
+ENDUSE;
+	
+end WriteMain;
+
+procedure Cmd_Help_Module( hwin:dword; wparam:dword; lparam:dword );	
+begin Cmd_Help_Module;
+	if (openmod) then
+		w.DialogBoxParam (hinst, val IDD_ABOUT, hwnd, &Proc_About, 1);
+	else
+		w.MessageBox (hwnd, "Error", "Module Not Loaded", w.MB_OK );		
+	endif;
+end Cmd_Help_Module;
+
+procedure Cmd_Help_History( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Help_History;
+	USE( ESI, EDI, EAX );
+	history.toFile( "history.txt" );
+	//str.put( strbuf, "notepad mods\history.txt");
+	os2.sysexec( "notepad.exe history.txt" );
+	ENDUSE;	
+end Cmd_Help_History;
+
+
+procedure Cmd_Help_About( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Help_About;
+	w.DialogBoxParam (hinst, val IDD_ABOUT, hwnd, &Proc_About, 0);
+	
+end Cmd_Help_About;
+
+procedure Cmd_Action_Query( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Query;
+	
+	mov( act_query, game.lastaction );
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+	objebx.runEvent();
+	done:
+end Cmd_Action_Query;
+
+
+proc
+	
+	Cmd_Action_Steal		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Steal;
+		mov( act_steal, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Steal;
+
+	Cmd_Action_Ask		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Ask;
+		mov( act_ask, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Ask;
+
+	Cmd_Action_Say		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Say;
+		mov( act_say, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Say;
+
+	Cmd_Action_Sing		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Sing;
+		mov( act_sing, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Sing;
+
+	Cmd_Action_Turnleft		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Turnleft;
+		mov( act_turnleft, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Turnleft;
+
+	Cmd_Action_Turnright		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Turnright;
+		mov( act_turnright, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Turnright;
+
+	Cmd_Action_Clean		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Clean;
+		mov( act_clean, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Clean;
+
+	Cmd_Action_Tie		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Tie;
+		mov( act_tie, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Tie;
+
+	Cmd_Action_Untie		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Untie;
+		mov( act_untie, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Untie;
+
+	Cmd_Action_Shoot		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Shoot;
+		mov( act_shoot, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Shoot;
+
+	Cmd_Action_Press		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Press;
+		mov( act_press, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+	end Cmd_Action_Press;
+
+	Cmd_Action_Look		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Look;
+		mov( act_look, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+	end Cmd_Action_Look;
+
+	Cmd_Action_Swim		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Swim;
+		mov( act_swim, game.lastaction );
+		mov( curItem, ebx );
+		mov( ebx, game.lastobject );
+		
+		checkInterrupt();	jc done;
+		verbEvent();
+		objebx.runEvent();
+		done:
+
+	end Cmd_Action_Swim;
+
+	Cmd_Action_Usewith		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Usewith;
+		
+		mov( act_usewith, game.lastaction );
+		mov( mode_usewith, game.status );
+		ui.write(nl "Use with what?" nl nl);
+		
+	end Cmd_Action_Usewith;
+
+	Cmd_Action_Useon		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Useon;
+		
+		mov( act_usewith, game.lastaction );
+		mov( mode_usewith, game.status );
+		ui.write(nl "Use on what?" nl nl);
+		
+	end Cmd_Action_Useon;
+
+	Cmd_Action_Combine		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Combine;
+		
+		mov( act_combine, game.lastaction );
+		mov( mode_usewith, game.status );
+		ui.write(nl "Combine with what?" nl nl );
+		
+	end Cmd_Action_Combine;
+
+	Cmd_Action_Target		:procedure( hwin:dword; wparam:dword; lparam:dword );
+	begin Cmd_Action_Target;
+		
+		mov( act_target, game.lastaction );
+		mov( mode_usewith, game.status );
+		ui.write(nl "Target what?" nl nl );
+		
+	end Cmd_Action_Target;
+
+
+
+procedure Cmd_Action_Buy( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Buy;
+	
+	mov( act_buy, game.lastaction );
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	checkInterrupt();	jc done;
+	verbEvent();
+	objebx.runEvent();
+	done:
+end Cmd_Action_Buy;
+
+procedure Cmd_Action_Sell( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Sell;
+	mov( act_sell, game.lastaction );
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	checkInterrupt();	jc done;
+	verbEvent();
+	objebx.runEvent();
+	done:	
+end Cmd_Action_Sell;
+
+
+procedure Cmd_Action_Attack( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Attack;
+	
+	mov (act_attack, game.lastaction);
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	checkInterrupt();	jc done;
+	verbEvent();
+	objebx.runEvent();
+	done:
+	dbg.put("/attack");	
+end Cmd_Action_Attack;
+
+procedure Cmd_Action_Climb( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Climb;
+	mov (act_climb, game.lastaction);
+	mov( curItem, ebx );
+	mov (ebx, game.lastobject);
+	checkInterrupt();	jc done;
+	verbEvent();
+	objebx.runEvent();
+	done:
+end Cmd_Action_Climb;
+
+procedure Cmd_Action_Break( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Break;
+	mov (act_break, game.lastaction);
+	mov( curItem, ebx );
+	mov (ebx, game.lastobject);
+	or( is_broken, objeax.state );
+	checkInterrupt();	jc done;
+	verbEvent();
+	objebx.runEvent();
+	done:
+end Cmd_Action_Break;
+
+procedure Cmd_Action_Open( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Open;
+	pushabi;
+	
+	mov( curItem, esi );
+	mov (act_open, game.lastaction);
+	mov (esi, game.lastobject);
+
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	if (testnz ( is_locked, objesi.state) ) then
+		loadString (baseesi.lbl, buffer_str );
+		ui.write ( buffer_str, " is locked" nl nl);
+		exit Cmd_Action_Open;
+	endif;
+		
+	and( ! is_closed, objesi.state );
+	loadString (baseesi.lbl, buffer_str);
+	ui.write ("opened ", buffer_str, nl nl);
+	
+	// if this is a container, empty the contents
+	// into the room
+	if (testnz (rtti_container, objesi.rtti) ) then
+		//dbg.put("opened container");
+		if (testz ( is_closed, objesi.state)) then
+			
+			// container is open, lazy method, just empty
+			// stuff out into the room
+			containeresi.moveInventory (game.curroom);
+		endif;
+	endif;	
+	
+	baseesi.runEvent();
+	done:
+	popabi;
+end Cmd_Action_Open;
+
+procedure Cmd_Action_Close( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Close;
+	//mov (curItem.lParam, eax);
+	mov( curItem, ebx );
+
+	mov (act_close, game.lastaction);
+	mov (ebx, game.lastobject);
+
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	if ( testnz (rtti_container, objebx.rtti) ) then
+		or( is_closed, objebx.state );
+		loadString (baseebx.lbl, buffer_str );
+		ui.write ( "closed ", buffer_str, nl nl);
+		objebx.runEvent();
+	endif;
+	done:
+end Cmd_Action_Close;
+
+procedure Cmd_Action_Lock( hwin:dword; wparam:dword; lparam:dword );
+var
+	pcp	:pointer to arayna_playerClass;
+
+begin Cmd_Action_Lock;
+	//mov (curItem.lParam, eax);
+	mov( curItem, ebx );
+	mov (act_lock, game.lastaction);
+	mov (ebx, game.lastobject);
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	if( testnz( rtti_container, objebx.rtti ) ) then
+
+		// search for key in inventory:
+		mov ( containerebx.key, ecx);
+		move ( game.pc, pcp);
+		pcp.searchOrdinal( ecx );
+		if (eax) then
+			// pc has the key
+			//mov( listnodeeax.obj, eax );
+			push( eax );
+			loadString (baseeax.lbl, buffer_str );
+			ui.write ("Used ", buffer_str, nl nl);
+			pop( eax );
+			useObject( eax );
+			
+			//mov (curItem.lParam, eax);
+			mov( curItem, eax );
+			or ( is_locked | is_closed, objeax.state);
+			push(eax);
+			loadString (baseeax.lbl, buffer_str );
+			ui.write ( buffer_str, " locked" nl nl);
+			pop (eax);
+			
+			objeax.runEvent();
+
+		else
+			ui.write ("You don't have the key" nl nl);
+		endif;
+	endif;
+	done:
+end Cmd_Action_Lock;
+
+procedure Cmd_Action_Unlock( hwin:dword; wparam:dword; lparam:dword );
+@alignstack;
+	var
+
+
+
+		pcp	:pointer to arayna_playerClass;
+		
+begin Cmd_Action_Unlock;
+	dbg.put ("unlock");
+	//mov (curItem.lParam, ebx);
+	mov( curItem, ebx );
+	mov (act_unlock, game.lastaction);
+	mov (ebx, game.lastobject);
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	if( testnz( rtti_container, objebx.rtti )) then
+		mov( objebx.state, ecx );
+		mov( containerebx.key, edx );
+
+		// search for key (ref: edx) in inventory
+		mov ( game.pc, pcp);
+		pcp.searchOrdinal (edx);
+		if (eax) then
+			// pc has the key
+			//mov( listnodeeax.obj, eax );
+			push( eax );
+			loadString (baseeax.lbl, buffer_str);
+			ui.write ("Used ", buffer_str, nl nl);
+			pop( eax );
+			useObject( eax );
+			
+			loadString (baseebx.lbl, buffer_str );
+			ui.write ( buffer_str, " unlocked" nl nl);
+						
+			mov (act_unlock, game.lastaction);
+			mov (ebx, game.lastobject);
+			and( ! is_locked, objebx.state );
+			or( is_closed, objebx.state ); dbg.put ("state = ", objebx.state );
+			objebx.runEvent();
+
+		else
+			ui.write ("You don't have the key" nl nl);
+		endif;
+	endif;
+	done:	
+end Cmd_Action_Unlock;
+
+
+procedure Cmd_Action_Talk ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Talk;
+	//mov (curItem.lParam, eax);
+	mov( curItem, ebx );
+	mov (act_talk, game.lastaction);
+	mov (ebx, game.lastobject);
+
+	checkInterrupt();	jc done;
+	verbEvent();
+	objebx.runEvent();
+	done:
+end Cmd_Action_Talk;
+
+procedure Cmd_Action_Eat( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Eat;
+	
+	//mov (curItem.lParam, ebx);
+	mov( curItem, ebx );
+	mov (ebx, game.lastobject);
+	mov (act_eat, game.lastaction);
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	loadString (baseebx.lbl, buffer_str );
+	ui.write ("Ate ", buffer_str, nl nl);
+
+	mov( objebx.rtti, eax );
+	if (testnz (rtti_stackable, eax)) then
+		//dbg.put ("stackable");
+		dec ( itemebx.stack);
+		if (@z) then
+			if ( mov( game.view, eax ) = hlistinv ) then
+				mov (game.pc, esi);
+				pcesi.removeObj (ebx);
+				mem.free (ebx);
+				pcesi.inventory();
+			else
+				mov (game.curroom, esi);
+				roomesi.removeObj (ebx);
+				mem.free (ebx);
+				roomesi.inventory();
+			endif;
+			
+		else
+			if ( mov( game.view, eax ) = hlistinv ) then
+				mov (game.pc, esi);
+				pcesi.inventory();
+			else
+				mov (game.curroom, esi);
+				roomesi.inventory();
+			endif;
+		endif;
+		
+		objebx.runEvent();
+		
+	else
+		useObject (ebx);
+	endif;
+	done:
+end Cmd_Action_Eat;
+
+procedure Cmd_Action_Drink( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Drink;
+	
+	mov( curItem, ebx );
+	mov (ebx, game.lastobject);
+	mov (act_drink, game.lastaction);
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	loadString (baseebx.lbl, buffer_str );
+	ui.write ("Drank ", buffer_str, nl nl);
+
+	mov( objebx.rtti, eax );
+	if (testnz (rtti_stackable, eax)) then
+		//dbg.put ("stackable");
+		dec ( itemebx.stack);
+		if (@z) then
+			if ( mov( game.view, eax ) = hlistinv ) then
+				mov (game.pc, esi);
+				pcesi.removeObj (ebx);
+				mem.free (ebx);
+				pcesi.inventory();
+			else
+				mov (game.curroom, esi);
+				roomesi.removeObj (ebx);
+				mem.free (ebx);
+				roomesi.inventory();
+			endif;
+			
+		else
+			if ( mov( game.view, eax ) = hlistinv ) then
+				mov (game.pc, esi);
+				pcesi.inventory();
+			else
+				mov (game.curroom, esi);
+				roomesi.inventory();
+			endif;
+		endif;
+		
+		objebx.runEvent();
+		
+	else
+		useObject (ebx);
+	endif;
+	done:
+end Cmd_Action_Drink;
+
+
+procedure Cmd_Action_Push ( hwin:dword; wparam:dword; lparam:dword );	
+begin Cmd_Action_Push;
+	
+	mov (act_push, game.lastaction);
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	or( is_on, objebx.state );
+	useObject (ebx);
+	
+	done:
+end Cmd_Action_Push;
+
+procedure Cmd_Action_Pull( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Pull;
+	
+	mov (act_pull, game.lastaction);
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	and( ! is_on, objebx.state );
+	useObject (ebx);
+	
+	done:
+end Cmd_Action_Pull;
+
+procedure Cmd_Action_Activate ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Activate;
+	
+	mov (act_activate, game.lastaction);
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	or( is_on, objebx.state );
+	useObject (ebx);
+	done:
+end Cmd_Action_Activate;
+
+procedure Cmd_Action_Deactivate( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Deactivate;
+	
+	mov (act_deactivate, game.lastaction);
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	and( ! is_on, objebx.state );
+	objebx.runEvent();
+	done:
+end Cmd_Action_Deactivate;
+
+procedure Cmd_Action_Wield ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Wield;
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	mov( act_wield, game.lastaction );
+
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+
+	or( is_on, objebx.state );
+	
+	loadString( objebx.lbl, buffer_str );
+	ui.write( "Wielded ", buffer_str, nl nl );
+	
+	objebx.runEvent();
+	done:
+	
+end Cmd_Action_Wield;
+
+procedure Cmd_Action_Unwield  ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Unwield;
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	mov( act_unwield, game.lastaction );
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	and( ! is_on, objebx.state );
+
+	loadString( objebx.lbl, buffer_str );
+	ui.write( "Sheathed ", buffer_str, nl nl );
+
+	objebx.runEvent();
+	done:
+end Cmd_Action_Unwield;
+
+procedure Cmd_Action_Wear ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Wear;
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	mov( act_wear, game.lastaction );
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	or( is_on, objebx.state );
+	loadString( objebx.lbl, buffer_str );
+	ui.write( "Wore ", buffer_str, nl nl );
+	objebx.runEvent();
+	done:
+end Cmd_Action_Wear;
+
+procedure Cmd_Action_Remove ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Remove;
+	mov( curItem, ebx );
+	mov( ebx, game.lastobject );
+	mov( act_remove, game.lastaction );
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	and( ! is_on, objebx.state );
+
+	loadString( objebx.lbl, buffer_str );
+	ui.write( "Removed ", buffer_str, nl nl );
+	
+	objebx.runEvent();
+	done:
+end Cmd_Action_Remove;
+
+procedure Cmd_Action_Use ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Action_Use;
+	
+	mov (act_use, game.lastaction);
+	mov( curItem, ebx );
+	mov (ebx, game.lastobject);
+	checkInterrupt();	jc done;
+	verbEvent();
+	useObject (ebx);
+	done:
+end Cmd_Action_Use;
+
+procedure Cmd_Action_Drop( hwin:dword; wparam:dword; lparam:dword );
+var
+	todrop	:pointer to arayna_baseClass;
+	stack		:dword;
+
+begin Cmd_Action_Drop;
+
+	// test to see if curItem is indeed the current item
+	//mov (curItem.lParam, eax);
+	mov( curItem, ebx );
+	mov (act_drop, game.lastaction);
+	mov (ebx, game.lastobject);
+	
+	checkInterrupt();	jc done;
+	verbEvent();
+	
+	if (ebx) then
+		
+		mov (ebx, todrop);
+		if ( testnz ( rtti_stackable, baseebx.rtti)) then
+			w.DialogBoxParam (hinst, val IDD_AMOUNT, hwnd, &Proc_Amount, 0);
+			//dbg.put ("dialog return :", eax);
+			if (eax = -1) then
+				mov (todrop, eax);
+				jmp _removeall;	
+			endif;
+			mov (eax, stack);
+			
+			mov (todrop, esi);
+			mov (itemesi.stack, ecx);
+			if (eax >= ecx) then
+				jmp _removeall;
+			endif;
+			
+			sub (eax, ecx);
+			mov (ecx, itemesi.stack);
+			todrop.clone();
+			mov (stack, itemeax.stack);
+			mov (game.pc, esi);
+			
+			
+		else
+		
+			_removeall:
+			mov (game.pc, esi);
+			pcesi.removeObj (todrop);
+		
+		endif;
+		
+		pcesi.inventory();			// update the list
+		if (eax) then
+			
+			push (eax);
+			loadString (baseeax.lbl, buffer_str );
+			pop (eax);
+			ui.write ( buffer_str, " dropped" nl nl);
+			mov (game.curroom, esi);
+			roomesi.addObject (eax);
+			roomesi.inventory();
+			objeax.runEvent();
+			
+		else
+			ui.write ("error during object drop" nl nl);
+		endif;
+	endif;
+
+	done:
+	
+end Cmd_Action_Drop;
+
+procedure Cmd_Action_Search( hwin:dword; wparam:dword; lparam:dword );
+var
+	obj		:pointer to arayna_baseClass;
+
+begin Cmd_Action_Search;
+
+
+	mov (act_search, game.lastaction);	
+	mov( curItem, ebx );
+	if (ebx) then
+		mov (ebx, game.lastobject);
+	else
+		mov (game.curroom, ebx);
+		mov (ebx, game.lastobject);		
+	endif;
+	checkInterrupt();	jc done;
+	verbEvent();
+	inc( game.moves );
+	objebx.runEvent();
+	done:
+
+end Cmd_Action_Search;
+
+procedure Cmd_Action_Examine( hwin:dword; wparam:dword; lparam:dword );
+	
+begin Cmd_Action_Examine;
+
+	mov( curItem, ebx );
+	mov (act_examine, game.lastaction);
+	mov (ebx, game.lastobject);
+
+	checkInterrupt();	jc done;
+	verbEvent();
+	if (ebx) then
+		(type arayna_objectClass[ebx]).fullyDescribe();
+	endif;
+
+	objebx.runEvent();
+
+	done:
+end Cmd_Action_Examine;
+
+
+procedure Cmd_Action_Get( hwin:dword; wparam:dword; lparam:dword );
+	// get command selected
+	// remove the item from the "room" and insert it into "pc"
+begin Cmd_Action_Get;
+
+	mov( curItem, ebx );
+	mov (act_get, game.lastaction);
+	mov (ebx, game.lastobject);
+
+	checkInterrupt();	jc done;
+	verbEvent();
+
+	if (ebx) then
+		mov (ebx, ecx);
+		(type arayna_objectClass[ebx]).getVerbs();
+		mov (&id_attrib, edi);
+		if( tbt ( act_get, [edi])) then
+			mov (ecx, eax);
+		
+			mov (game.curroom, esi);
+			mov (roomesi.rtti, ecx);
+			roomesi.removeObj (eax);
+			roomesi.inventory();		// update the list
+			
+			if (eax) then
+				push (eax);
+				loadString (baseeax.lbl, buffer_str);
+				pop (eax);
+				ui.write ( buffer_str, " picked up" nl nl);
+	
+				mov (game.pc, esi);
+				pcesi.addObject (eax);
+				pcesi.inventory();
+				
+				objeax.runEvent(); 
+			else
+				ui.write ("error during object retreival" nl nl);
+			endif;
+		endif;
+	else
+		_cantpick:
+		loadString (baseebx.lbl, buffer_str );
+		ui.write ("Can't pick up ", buffer_str, nl nl);
+
+	endif;
+	done:
+	
+end Cmd_Action_Get;
+
+procedure PrepareForMove;  @returns ("EAX"); @noframe;
+/*
+	some initializations, tests to perform before a movement is possible
+	returns:
+		EAX		true if everything is fine
+		ECX		room ptr
+		EBX		room data
+*/
+begin PrepareForMove;
+	
+	mov( game.curroom, ecx );
+	mov( roomBuffer.data, ebx );
+	
+	or (1, eax);
+	ret();
+	
+end PrepareForMove;
+
+procedure Cmd_North  ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_North;
+	ui.write ("north" nl nl);
+	
+	// might be from keyboard, so check status of button
+	// before proceeding
+	if (w.IsWindowEnabled (hnorth) ) then
+		
+		if ( PrepareForMove()) then
+	
+			
+			mov ( roomecx.north, eax);
+			
+			// grab the room pointer from memory
+			mov ([ebx+ eax*4], eax);
+			if (eax) then
+				
+				mov (eax, ecx);					
+				mov (game.curroom, eax);
+				mov (ecx, game.curroom);
+				mov ( (type arayna_roomClass[eax]).id, game.fromroom);
+				
+				call EnterCurrentRoom;
+			else 
+				jmp _cantgo;
+			endif;
+		endif;
+		
+	else
+		_cantgo:
+		ui.write ("Can't move north" nl nl);
+	endif;
+end Cmd_North;
+
+procedure Cmd_NorthWest ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_NorthWest;
+	ui.write ("northwest" nl nl);
+	
+	// might be from keyboard, so check status of button
+	// before proceeding
+	if (w.IsWindowEnabled (hnorthwest) ) then
+
+		if ( PrepareForMove()) then
+		
+			// grab the room pointer from memory
+			mov (roomecx.northWest, eax);
+			mov ([ebx+ eax*4], eax);
+			if (eax) then
+				
+				mov (eax, ecx);					
+				mov (game.curroom, eax);
+				mov (ecx, game.curroom);
+				mov ( (type arayna_roomClass[eax]).id, game.fromroom);
+				
+				call EnterCurrentRoom;
+			else 
+				jmp _cantgo;
+			endif;
+		endif;
+		
+	else
+		_cantgo:
+		ui.write ("Can't move northwest" nl nl);
+	endif;
+end Cmd_NorthWest;
+
+procedure Cmd_West  ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_West;
+	ui.write ("west" nl nl);
+	
+	// might be from keyboard, so check status of button
+	// before proceeding
+	if (w.IsWindowEnabled (hwest) ) then
+		
+		if ( PrepareForMove()) then
+
+			// grab the room pointer from memory
+			mov (roomecx.west, eax);
+			mov ([ebx+ eax*4], eax);
+			if (eax) then
+				
+				mov (eax, ecx);
+				mov (game.curroom, eax);
+				mov (ecx, game.curroom);
+				mov ( (type arayna_roomClass[eax]).id, game.fromroom);
+				
+				call EnterCurrentRoom;
+			else 
+				jmp _cantgo;
+			endif;
+		endif;		
+	else
+		_cantgo:
+		ui.write ("Can't move west" nl nl);
+	endif;
+end Cmd_West;
+
+procedure Cmd_SouthWest ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_SouthWest;
+	ui.write ("southwest" nl nl);
+	
+	// might be from keyboard, so check status of button
+	// before proceeding
+	if (w.IsWindowEnabled (hsouthwest) ) then
+		
+		if ( PrepareForMove()) then
+
+			// grab the room pointer from memory
+			mov (roomecx.southWest, eax);
+			mov ([ebx+ eax*4], eax);
+			
+			if (eax) then
+				mov (eax, ecx);
+				mov (game.curroom, eax);
+				mov (ecx, game.curroom);
+				mov ( (type arayna_roomClass[eax]).id, game.fromroom);
+				
+				call EnterCurrentRoom;
+			else 
+				jmp _cantgo;
+			endif;
+		endif;		
+	else
+		_cantgo:
+		ui.write ("Can't move southwest" nl nl);
+	endif;
+end Cmd_SouthWest;
+
+procedure Cmd_South ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_South;
+	ui.write ("south" nl nl);
+	
+	// might be from keyboard, so check status of button
+	// before proceeding
+	if (w.IsWindowEnabled (hsouth) ) then
+
+		if ( PrepareForMove()) then
+			
+			mov ( roomecx.south, eax);		
+			// grab the room pointer from memory
+			mov ([ebx+ eax*4], eax);
+			if (eax) then
+				
+				mov (eax, ecx);
+				mov (game.curroom, eax);
+				mov (ecx, game.curroom);
+				mov ( (type arayna_roomClass[eax]).id, game.fromroom);
+				
+				call EnterCurrentRoom;
+			else 
+				jmp _cantgo;
+			endif;
+		endif;
+	else
+		_cantgo:
+		ui.write ("Can't move south" nl nl);
+	endif;
+end Cmd_South;
+
+procedure Cmd_SouthEast ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_SouthEast;
+	ui.write ("southeast" nl nl);
+	
+	// might be from keyboard, so check status of button
+	// before proceeding
+	if (w.IsWindowEnabled (hsoutheast) ) then
+
+		if ( PrepareForMove()) then
+			
+		
+			mov ( roomecx.southEast, eax);
+			
+			// grab the room pointer from memory
+			mov ([ebx+ eax*4], eax);
+			if (eax) then
+				
+				mov (eax, ecx);
+				mov (game.curroom, eax);
+				mov (ecx, game.curroom);
+				mov ( (type arayna_roomClass[eax]).id, game.fromroom);
+				call EnterCurrentRoom;
+			else 
+				jmp _cantgo;
+			endif;
+		endif;
+	else
+		_cantgo:
+		ui.write ("Can't move southeast" nl nl);
+	endif;
+end Cmd_SouthEast;
+
+procedure Cmd_East ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_East;
+	ui.write ("east" nl nl);
+	
+	// might be from keyboard, so check status of button
+	// before proceeding
+	if (w.IsWindowEnabled (heast) ) then
+		
+		if ( PrepareForMove()) then
+
+			mov ( roomecx.east, eax);
+			
+			// grab the room pointer from memory
+			mov ([ebx+ eax*4], eax);
+			if (eax) then
+				
+				mov (eax, ecx);
+				mov (game.curroom, eax);
+				mov (ecx, game.curroom);
+				mov ( (type arayna_roomClass[eax]).id, game.fromroom);
+				
+				call EnterCurrentRoom;
+			else 
+				jmp _cantgo;
+			endif;
+		endif;
+	else
+		_cantgo:
+		ui.write ("Can't move east" nl nl);
+	endif;
+end Cmd_East;
+
+procedure Cmd_NorthEast ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_NorthEast;
+	ui.write ("northeast" nl nl);
+	
+	// might be from keyboard, so check status of button
+	// before proceeding
+	if (w.IsWindowEnabled (hnortheast) ) then
+		
+		if ( PrepareForMove()) then
+
+			mov ( roomecx.northEast, eax);
+			
+			// grab the room pointer from memory
+			mov ([ebx+ eax*4], eax);
+			if (eax) then
+				
+				mov (eax, ecx);
+				mov (game.curroom, eax);
+				mov (ecx, game.curroom);
+				mov ( (type arayna_roomClass[eax]).id, game.fromroom);
+				
+				call EnterCurrentRoom;
+			else 
+				jmp _cantgo;
+			endif;
+		endif;
+	else
+		_cantgo:
+		ui.write ("Can't move northeast" nl nl);
+	endif;
+end Cmd_NorthEast;
+
+procedure Cmd_Center ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Center;
+	
+	//ui.write ("resting" nl);
+	if (openmod) then
+		
+		mov( game.curroom, eax );
+		mov( eax, curItem );
+		//mov( 0, curItem );
+		Cmd_Action_Search( hwin, wparam, lparam );
+	
+		// run area and game events, if any
+		mov( game.curroom, ecx );
+		mov( roomecx.group, ecx );
+		objectList.findNodeID( ecx );
+		if( ecx ) then
+			mov( listnodeeax.obj, ecx );
+			areaecx.runEvent();
+		endif;
+
+		mov( game.araynaObj, ecx );
+		if (ecx) then
+			baseecx.runEvent();
+		endif;
+		
+	endif;
+	
+	
+	#if( @defined (debug) )
+		// dump symbols
+		push( esi );
+		push( eax );
+		push( ecx );
+		dbg.enters( "dump symbols" );
+		foreach symbol_tbl.item()  do
+			mov( (type tableNode[eax]).Value, ecx );
+			dbg.put( (type tableNode[eax]).id,"		", attrecx.id, " | ", attrecx.atype, " | ", attrecx.tc);
+		endfor;
+		dbg.exits( "dump symbols" );
+		pop( ecx );
+		pop( eax );
+		pop( esi );
+		
+	#endif
+
+end Cmd_Center;
+
+procedure Cmd_Up ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Up;
+	ui.write ("up" nl nl);
+	
+	// might be from keyboard, so check status of button
+	// before proceeding
+	if (w.IsWindowEnabled (hup) ) then
+		
+		if ( PrepareForMove()) then
+
+			mov ( roomecx.up, eax);
+			
+			// grab the room pointer from memory
+			mov ([ebx+ eax*4], eax);
+			if (eax) then
+				
+				mov (eax, ecx);
+				mov (game.curroom, eax);
+				mov (ecx, game.curroom);
+				mov ( (type arayna_roomClass[eax]).id, game.fromroom);
+				
+				call EnterCurrentRoom;
+			else 
+				jmp _cantgo;
+			endif;
+		endif;	
+	else
+		_cantgo:
+		ui.write ("Can't move up" nl nl);
+	endif;
+end Cmd_Up;
+
+procedure Cmd_Down  ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Down;
+	ui.write ("down" nl nl);
+	
+	// might be from keyboard, so check status of button
+	// before proceeding
+	if (w.IsWindowEnabled (hdown) ) then
+
+		if ( PrepareForMove()) then
+
+			mov ( roomecx.down, eax);
+			
+			// grab the room pointer from memory
+			mov ([ebx+ eax*4], eax);
+			if (eax) then
+				
+				mov (eax, ecx);
+				mov (game.curroom, eax);
+				mov (ecx, game.curroom);
+				mov ( (type arayna_roomClass[eax]).id, game.fromroom);
+				
+				call EnterCurrentRoom;
+			else 
+				jmp _cantgo;
+			endif;
+		endif;	
+	else
+		_cantgo:
+		ui.write ("Can't move down" nl nl);
+	endif;
+end Cmd_Down;
+
+
+procedure Cmd_File_OpenMod ( hwin:dword; wparam:dword; lparam:dword );
+
+var
+	of	:w.OPENFILENAME;
+	_buf:char[300];
+
+static
+	nowdir	:str.strvar (300);
+	modstr	:string := "mod";
+	modfiles :byte; @nostorage;
+		byte "Module Files (*.mod)", 0, "*.mod",0;
+		byte "AllFiles (*.*)", 0, "*.*", 0, 0;
+
+
+begin Cmd_File_OpenMod;
+
+	lea( of, eax );
+	mem2.fillMem( [eax], @size(w.OPENFILENAME), 0);
+	mov	(@size(of),of.lStructSize);
+	pushd(hwin);
+	pop	(of.hWndOwner);
+	pushd(hinst);
+	pop(of.hInstance);
+	mov	(0,_buf[0]);
+	lea (eax, _buf);
+	mov	( eax, of.lpstrFile);
+	mov	(@size(_buf), of.nMaxFile);
+	filesys.gwd (nowdir);
+	push (nowdir);
+	pop (of.lpstrInitialDir);
+	mov (&modstr, of.lpstrDefExt);
+	mov (&modfiles, of.lpstrFilter);
+	w.GetOpenFileName (of);
+	if ( _buf[0] <> 0 ) then
+		SendStr	(hedit, w.WM_SETTEXT, 0, "" );
+		if (openmod) then
+			//dbg.put ("calling cleanup");
+			w.SendMessage( hwnd, ARAYNA_RESET, 0, 0 );
+			CleanUp();
+			//mov (false, openmod);
+		endif;
+		//dbg.mark;
+		lea( eax, _buf );
+		str.cpyz( eax, strbuf );
+		dbg.put("loading :", strbuf );
+		//a (eax, _buf);
+		openModule (strbuf);
+	endif;
+	mov (true, openmod);
+end Cmd_File_OpenMod;
+
+procedure Cmd_Game_Inv( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Game_Inv;
+	if( openmod ) then
+		w.SendMessage( hinv, w.BM_GETCHECK, 0, 0 );
+		if( eax = w.BST_CHECKED ) then
+			w.SendMessage( hinv, w.BM_SETCHECK, w.BST_UNCHECKED, 0 );
+		else
+			w.SendMessage( hinv, w.BM_SETCHECK, w.BST_CHECKED, 0 );
+		endif;
+		w.SendMessage( hinv, w.BM_CLICK, 0, 0 );
+		w.SendMessage( htoolwind, w.WM_COMMAND, IDC_INV, NULL );
+	endif;
+end Cmd_Game_Inv;
+
+
+procedure Cmd_Game_Load ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Game_Load;
+	if (openmod) then
+		loadModule();
+		
+		//mov( game.curroom, esi ); dbg.put("inv :", esi );
+		//roomesi.inventory();
+		mov( game.pc, esi );	dbg.put("inv :", esi );
+		pcesi.inventory();
+		if( game.loadEvent) then
+			dbg.put("loadevent");
+			executeSection( "loadevent@section" );
+		endif;
+		EnterCurrentRoom();
+	else
+		ui.write ("No module loaded" nl nl);
+	endif;
+end Cmd_Game_Load;
+
+procedure Cmd_Game_Save ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Game_Save;
+	if (openmod) then
+		saveModule();
+		ui.write ("Game saved" nl nl);
+		if( game.saveEvent) then
+			executeSection( "saveevent@section" );
+		endif;
+	else
+		ui.write ("No module loaded",nl nl);
+	endif;
+end Cmd_Game_Save;
+
+procedure setFormat;
+	var
+		cf		:w.CHARFORMAT2;
+		chr		:w.CHARRANGE;
+
+begin setFormat;
+
+	lea (eax, cf);
+	mem2.fillMem( [eax], @size(w.CHARFORMAT2 ), 0 );
+	mov( @size( w.CHARFORMAT2 ), cf.cbSize );
+	mov( w.CFM_CHARSET | w.CFM_FACE | w.CFM_SIZE | w.CFM_COLOR, cf.dwMask );
+	mov( logfont.lfCharSet, al );
+	mov( al,cf.bCharSet );
+	mov( logfont.lfPitchAndFamily, al );
+	mov( al, cf.bPitchAndFamily );
+	lea( eax, cf.szFaceName );
+	zstr.cpyn( &logfont.lfFaceName, w.LF_FACESIZE, eax );
+	mov( logfont.lfHeight, eax );
+	neg( eax );
+	mov( 15,ecx );
+	mul( ecx );
+	mov( eax, cf.yHeight );
+ 	push( ini.txtcol );
+	pop( cf.crTextColor );
+	//dbg.put("ini.bkgcol = ", ini.bkgcol );
+	w.SendMessage(hedit, w.EM_SETBKGNDCOLOR, false, ini.bkgcol);
+	w.SendMessage(hedit, w.WM_SETFONT, hfont, true );
+ 
+	lea(eax, cf);
+	w.SendMessage(hedit, w.EM_SETCHARFORMAT, w.SCF_ALL, eax);
+
+end setFormat;
+
+procedure Cmd_Font ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Font;
+	
+	mem2.fillMem( &cf, @size(cf), 0 );
+	mov( @size(cf), cf.lStructSize );
+	mov( hwin, eax );
+	mov( eax, cf.hWndOwner );
+	mov( &logfont, cf.lpLogFont );
+	mov( w.CF_SCREENFONTS | w.CF_EFFECTS | w.CF_INITTOLOGFONTSTRUCT, cf.Flags );
+	push( ini.txtcol);
+	pop( cf.rgbColors );
+	w._ChooseFont(cf);
+	if (eax) then
+	
+		w.DeleteObject(hfont);
+		w.CreateFontIndirect(logfont);
+		mov( eax,hfont );
+		push( cf.rgbColors );
+		pop( ini.txtcol );
+		setFormat();
+	endif;
+	
+	config.writeBin( "Font", "mainfont", &logfont, @size(logfont) ); 
+	config.writeHex( "Colors", "text", ini.txtcol );
+end Cmd_Font;
+
+procedure Cmd_OpenLast( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_OpenLast;
+	
+	if( config.readBool( "Settings", "Open Last" ) ) then
+		config.writeBool("Settings", "Open Last", false );
+		w.CheckMenuItem( main_menu, IDM_OPEN_LAST, w.MF_BYCOMMAND | w.MF_UNCHECKED);
+	else
+		config.writeBool( "Settings", "Open Last", true );
+		w.CheckMenuItem( main_menu, IDM_OPEN_LAST, w.MF_BYCOMMAND | w.MF_CHECKED);
+	endif;
+
+	
+end Cmd_OpenLast;
+
+
+procedure Cmd_BkgColor( hwin:dword; wparam:dword; lparam:dword );
+	var
+		cc		:w.CHOOSECOLOR;
+		dump	:dword[16];
+		
+		
+begin Cmd_BkgColor;
+	
+	lea( eax, cc );
+	mem2.fillMem( [eax], @size( w.CHOOSECOLOR ), 0 );
+	mov( @size( cc ), eax );
+	mov( eax, cc.lStructSize );
+	mov( hwin, eax );
+	mov( eax, cc.hwndOwner );
+	mov(  w.CC_PREVENTFULLOPEN, cc.Flags );
+	lea( eax, dump );
+	mov( eax, cc.lpCustColors );
+	w._ChooseColor( cc );
+	if( eax ) then
+		mov( cc.rgbResult, eax ); dbg.put("color = ", eax );
+		mov( eax, ini.bkgcol );
+		setFormat();
+	endif;	
+	
+end Cmd_BkgColor;
+
+procedure Cmd_File_Quit ( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_File_Quit;
+	w.SendMessage (hwin, w.WM_CLOSE, 0, 0 );
+end Cmd_File_Quit;
+
+procedure Msg_InitArayna ( hwin:dword; wparam:dword; lparam:dword );
+begin Msg_InitArayna;
+	
+	call EnterCurrentRoom;
+	
+end Msg_InitArayna;
+
+
+procedure Msg_InitDialog ( hwin:dword; wparam:dword; lparam:dword );
+
+	var
+		rect	:arect;
+		
+begin Msg_InitDialog;
+	//dbg.put("initdialog");
+	mov(hwin, eax);
+	mov(eax, hwnd);
+
+	mov( true, showcontrols );
+	mov( true, showcommands );
+	
+	// window creation initialization goes here
+	w.GetDlgItem (hwnd, IDC_WIND);
+	mov	(eax, hedit);
+	w.SendMessage (eax, w.EM_SETMARGINS, w.EC_LEFTMARGIN, 5);
+	w.SendMessage (hedit, w.EM_LIMITTEXT, 0, 0);
+	
+	w.GetDlgItem (hwnd, IDC_DISPLAY);
+	mov (eax, hlistdisp);
+	
+	w.GetDlgItem( hwnd, IDC_COMMAND );
+	mov( eax, hlistcmd );
+	
+	w.GetDlgItem (hwnd, IDC_INFO);
+	mov (eax, hinfo);
+
+	//w.SetWindowsHookEx ( w.WH_KEYBOARD, &Proc_KeyboardHook, hinst, NULL); 
+	//mov (eax, hhook);
+	
+	w.GetSysColor( w.COLOR_WINDOW );
+	mov( eax, ini.bkgcol );
+	
+	w.GetSysColor( w.COLOR_WINDOWTEXT );
+	mov( eax, ini.txtcol );	
+
+	w.GetWindowRect( hwndinv, rect );
+	push( rect.x );
+	pop( ini.inv.x );
+	push( rect.y );
+	pop( ini.inv.y );
+	
+	mov( rect.x, eax );
+	sub( eax, rect.width );
+	mov( rect.y, eax );
+	sub( eax, rect.height );
+	push( rect.width );
+	pop( ini.inv.width );
+	push( rect.height );
+	pop( ini.inv.height );	
+
+	if( filesys.exists( "Arayna.ini" )) then
+		config.create( "Arayna.ini" );
+		config.readUns("Window Placement", "left" );
+		mov( eax, ini.x );
+		config.readUns("Window Placement", "top" );
+		mov( eax, ini.y );
+		config.readUns("Window Placement", "width" );
+		mov( eax, ini.width );
+		config.readUns("Window Placement", "height" );
+		mov( eax, ini.height );
+		w.MoveWindow( hwin, ini.x, ini.y, ini.width, ini.height, true );
+		
+		if( config.readUns("Window Placement", "inv_left" ) ) then
+			mov( eax, ini.inv.x );
+		endif;
+		if( config.readUns("Window Placement", "inv_top" )) then
+			mov( eax, ini.inv.y );
+		endif;
+		if( config.readUns("Window Placement", "inv_width" )) then
+			mov( eax, ini.inv.width );
+		endif;
+		if( config.readUns("Window Placement", "inv_height" )) then
+			mov( eax, ini.inv.height );
+		endif;
+		
+		if( config.readUns("Settings", "Inv" ) ) then
+			if( eax ) then
+				w.ShowWindow( hwndinv, w.SW_SHOWNORMAL );
+				w.CheckDlgButton( htoolwind, IDC_INV, w.BST_CHECKED );
+			endif;
+		endif;
+		
+		if( config.readHex("Colors", "Background" )) then
+			mov( eax, ini.bkgcol );
+		endif;
+		
+		if( config.readHex("Colors", "text" )) then
+			mov( eax, ini.txtcol );
+		endif;		
+		
+		config.readBin( "Font", "mainfont", &logfont, @size( logfont ));
+	else
+		config.create();
+	endif;
+
+	w.MoveWindow( hwndinv, ini.inv.x, ini.inv.y, ini.inv.width, ini.inv.height, true );
+
+	w.SetParent( htoolwind, hwnd );
+	
+	lea(eax,logfont);
+	mov((type byte[eax]),al);
+	if (!al) then
+		// let the system find a default font
+		zstr.cpy( &szfont, &logfont.lfFaceName );
+		mov	(-12,logfont.lfHeight);
+		mov	(400,logfont.lfWeight);
+	endif;
+	w.CreateFontIndirect( &logfont );
+	mov( eax,hfont );
+	
+	//dbg.put("setformat :", ini.bkgcol);
+	setFormat();
+	
+	w.GetMenu( hwin );
+	mov( eax, main_menu );
+	
+	w.EnableMenuItem( main_menu, IDM_DEBUG, w.MF_BYCOMMAND | w.MF_GRAYED );
+
+	// setup some Arayna ui defaults
+	SetWindowTitle ("");
+	WriteMain (introTxt);
+	mov( 0, game.view );
+	
+end Msg_InitDialog;
+
+procedure Msg_Reset( hwin:dword; wparam:dword; lparam:dword );
+begin Msg_Reset;
+USE (ESI);
+	//dbg.put("reset");
+	if( openmod ) then
+		xor (esi, esi);
+		UpdateNavigation(esi);
+		mov (false, game.status);
+		SetInfo();
+		ListView_Clear( hlistinv );
+		ListView_Clear( hlistdisp );
+		ListView_Clear( hlistcmd );
+		mov( true, showcontrols );
+		mov( true, showcommands );
+		w.ShowWindow( hwndinv, w.SW_HIDE );
+		w.ShowWindow( hlistcmd, w.SW_SHOWNORMAL );
+		w.CheckDlgButton( htoolwind, IDC_INV, w.BST_UNCHECKED );
+		w.ShowWindow( htoolwind, w.SW_SHOWNORMAL );
+		w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+		SetWindowTitle ("");
+	
+		// reset counter
+		mov( 1, internal_counter );
+		mov( false, openmod );
+	endif;
+ENDUSE;
+end Msg_Reset;
+
+
+procedure Msg_ClearWrite( hwin:dword; wparam:dword; lparam:dword );
+	
+begin Msg_ClearWrite;
+	//dbg.put("Msg_clearwrite");
+	SendStr	(hedit, w.WM_SETTEXT, 0, "" );	
+end Msg_ClearWrite;
+ 
+procedure Msg_Close ( hwin:dword; wparam:dword; lparam:dword );
+
+	var
+		rect	:arect;
+		
+
+begin Msg_Close;
+
+	dbg.put ("close");
+
+	w.GetWindowRect( hwin, rect );
+	config.writeUns("Window Placement", "left", rect.x );
+	config.writeUns("Window Placement", "top", rect.y );
+	
+	mov( rect.x, eax );
+	sub( eax, rect.width );
+	mov( rect.y, eax );
+	sub( eax, rect.height );
+	
+	config.writeUns("Window Placement", "width", rect.width );
+	config.writeUns("Window Placement", "height", rect.height );
+
+	w.GetWindowRect( hwndinv, rect );
+	config.writeUns("Window Placement", "inv_left", rect.x );
+	config.writeUns("Window Placement", "inv_top", rect.y );
+	
+	mov( rect.x, eax );
+	sub( eax, rect.width );
+	mov( rect.y, eax );
+	sub( eax, rect.height );
+	config.writeUns("Window Placement", "inv_width", rect.width );
+	config.writeUns("Window Placement", "inv_height", rect.height );
+
+	w.IsDlgButtonChecked( htoolwind, IDC_INV ); 
+	config.writeUns("Settings", "Inv", eax );
+
+	config.writeHex("Colors", "Background", ini.bkgcol );
+	config.writeHex("Colors", "text", ini.txtcol );
+
+	//dbg.put("homepath = ", homepath );
+	filesys.cd( homepath );
+	config.write("Arayna.ini"); 
+	
+	w.SendMessage(hwin, w.WM_DESTROY, 0, 0 );
+
+end Msg_Close;
+
+procedure Msg_Size ( hwin:dword; wparam:dword; lparam:dword );
+
+	var
+		client	:arect;
+		
+	const
+		infoheight	:= 25;
+		dispheight	:= 85;
+		navwidth		:= 112;
+		commandwidth:= 300;
+		invwidth := 150;
+		
+begin Msg_Size;
+	USE( EBX );
+	//dbg.put( "size" );
+	w.GetClientRect( hwin, client );
+	
+	w.MoveWindow( hinfo, 0, 0, client.width, infoheight, true ); 
+	
+	add( infoheight, client.y );
+	sub( dispheight, client.height );
+	mov( client.height, ebx );
+	sub( infoheight, client.height );
+	w.MoveWindow( hedit, 0, client.y, client.width, client.height, true );
+	
+	if( showcontrols ) then
+		//dbg.put("yes controls :", game.status );
+		if( game.status <= mode_normal ) then
+			
+			if( client.width >= navwidth ) then
+				sub( navwidth, client.width );
+			else
+				mov( 0, client.width );
+			endif;
+			
+			w.MoveWindow( htoolwind, client.width, ebx, navwidth, dispheight, true );
+			//w.IsWindowVisible(htoolwind );
+			//dbg.put("tool visibility :", eax );
+		endif;
+	endif;
+	
+	if( showcommands ) then
+		//dbg.put("yes commands");
+		if( game.status <= mode_normal ) then
+
+			//dbg.put("client width = ", (type uns32 client.width) );
+
+			if( client.width >= invwidth ) then
+				sub( invwidth, client.width );
+				//sub( commandwidth, client.width );
+				w.MoveWindow( hlistcmd, invwidth, ebx, client.width, dispheight, true );
+			
+			else
+				jmp nocmd;
+			endif;
+			
+		else
+			
+			jmp nocmd;
+			
+		endif;
+		
+		w.MoveWindow( hlistdisp, 0, ebx, invwidth, dispheight, true );
+		
+	else
+		nocmd:
+		w.MoveWindow( hlistdisp, 0, ebx, client.width, dispheight, true );
+		
+	endif;
+	
+		
+
+	ENDUSE;
+end Msg_Size;
+
+
+procedure Msg_Destroy ( hwin:dword; wparam:dword; lparam:dword );
+begin Msg_Destroy;
+
+	//dbg.put ("destroy");
+	//w.UnhookWindowsHookEx (hhook);
+	w.PostQuitMessage( NULL );
+	 
+end Msg_Destroy;
+
+
+procedure Msg_Command ( hwin:dword; wparam:dword; lparam:dword );
+begin Msg_Command;
+
+
+	mov(wparam,ecx);
+	mov(ecx,edx);
+	movzx(cx,ecx);
+	shr(16,edx);
+	
+	IF ( edx = w.BN_CLICKED ) THEN
+	
+		//dbg.put("bn click" );
+		// control or accelerator
+		mov(ecx,eax);
+
+		CONTROL_EVENT:		
+		mov(&command_table,edx);
+		
+		//dbg.put("command = ", eax );
+		
+		FOREVER
+			mov( (type MsgProcPtr_t [edx]).MessageHndlr, ecx );
+			IF ( ecx = 0 ) THEN
+				BREAK;
+				
+			ELSEIF ( eax = (type MsgProcPtr_t [edx]).MessageValue ) THEN
+	
+				push( hwin );
+				push( wparam );
+				push( lparam );
+				call( ecx );
+				sub(eax,eax);
+				BREAK;
+			ENDIF;
+			add( @size( MsgProcPtr_t ), edx );
+		ENDFOR;
+		
+	ELSEIF( edx = w.LBN_SELCHANGE ) then
+		
+		//dbg.put("selchange");
+		
+		move( lparam, game.view ); 
+		ListView_Notify( hwin, wparam, lparam );
+		
+	ELSE
+		
+		// other control events handled here
+		//dbg.put("other");
+		mov (edx, eax);
+		jmp CONTROL_EVENT;
+		
+	ENDIF;
+
+end Msg_Command;
+
+procedure initArayna; @noframe;
+begin initArayna;
+
+	w.GetModuleHandle( NULL );
+	w.InitCommonControls();
+	mov( eax, hinst );
+
+	str.alloc ($4000);
+	mov (eax, strbuf);
+	
+	str.alloc( $4000 );
+	mov( eax, buffer_str );
+
+	// generate the random number seed
+	rand.randomize();
+	mov (false, openmod);
+
+	fileList.create();
+	strconst.create();
+	
+	w.CreateDialogParam( hinst, val IDD_NAVIGATION, hwnd,
+								&proc_Control, NULL );
+								
+	w.CreateDialogParam( hinst, val IDD_VIEW_INV, hwnd, &Proc_Inv, NULL );
+	//dbg.put("dialog ret :", eax );
+	
+	history.create();
+	ret();
+end initArayna;
+
+begin Arayna;
+
+
+	w.LoadLibrary( &RichEditDLL );
+	mov( eax, hdll );
+	dbg.cls;
+	initArayna();
+
+	os2.getmodulepath( homepath );
+	filesys.extractPath( homepath, homepath );
+	
+	// main window created here
+	// describe and register the window class
+	mov( @size(w.WNDCLASSEX), wc.cbSize );
+	mov( w.CS_HREDRAW | w.CS_VREDRAW, wc.style );
+	mov( &Proc_Window, wc.lpfnWndProc );
+	mov( NULL, wc.cbClsExtra );
+	mov( w.DLGWINDOWEXTRA, wc.cbWndExtra );
+	mov( hinst, wc.hInstance );
+	mov( w.COLOR_BTNFACE+1, wc.hbrBackground );
+	mov( IDR_MENU, wc.lpszMenuName );
+	mov( ClassName, wc.lpszClassName );
+	
+	w.LoadIcon( NULL, val IDI_HLA );
+	mov( eax, wc.hIcon );
+	w.LoadImage( hinst, val IDI_HLA, w.IMAGE_ICON, w.SM_CXSMICON, w.SM_CYSMICON,NULL);
+	mov( eax, wc.hIconSm );
+
+	
+	//w.LoadIcon( NULL, val w.IDI_APPLICATION );
+	//mov( eax, wc.hIcon );
+	//mov( eax, wc.hIconSm );
+	w.LoadCursor( NULL, val w.IDC_ARROW );
+	mov( eax,wc.hCursor );
+	w.RegisterClassEx( wc );
+	or(eax,eax);
+	jnz _registerok;
+	Error( "Unable to register window class");
+	exit Arayna;
+	
+_registerok:
+	w.CreateDialogParam(
+				hinst,			// hInstance
+				val IDD_DLG,	// dialog ID number
+				NULL,			// parent window, NULL = desktop
+				&Proc_Window,		// call-back procedure
+				NULL			// user defined initialization value
+				);
+
+			
+	cmp(eax,0);
+	jne _windowok;
+	Error( "Unable to create window");
+	exit Arayna;
+	
+_windowok:
+	
+	w.ShowWindow( hwnd, w.SW_SHOWNORMAL );
+	w.UpdateWindow( hwnd );
+	
+	w.LoadAccelerators (hinst, val ID_ACCEL );
+	mov (eax, haccel);
+
+	//> go ahead and load the sample module
+	//filesys.cd ("mods");
+	//openModule( nowplaying );
+	//mov (true, openmod);
+
+	w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+
+
+	if( config.readBool( "Settings", "Open Last" ) ) then
+		w.CheckMenuItem( main_menu, IDM_OPEN_LAST, w.MF_BYCOMMAND | w.MF_CHECKED);
+		config.readString("Settings", "Last Mod", strbuf );
+		if( filesys.exists( strbuf ) ) then
+			filesys.extractPath( strbuf, buffer_str );
+			filesys.cd( buffer_str );
+			openModule( strbuf );
+			mov( true, openmod );
+		endif;
+	else
+		w.CheckMenuItem( main_menu, IDM_OPEN_LAST, w.MF_BYCOMMAND | w.MF_UNCHECKED);
+	endif;
+
+	w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+
+	FOREVER
+			w.GetMessage(msg,NULL,0,0);
+			breakif( ! eax );
+			
+			w.TranslateAccelerator (hwnd, haccel, msg);
+			continueif (eax);
+			w.TranslateMessage( msg );
+			w.DispatchMessage( msg );	
+	ENDFOR;
+	
+	w.FreeLibrary( hdll );
+	mov( msg.wParam, eax );
+_exit:
+
+end Arayna;
+
+
+//procedure Proc_KeyboardHook (lparam:dword; wparam:dword; code:dword);
+//	
+//begin Proc_KeyboardHook;
+////bm=TODO_Proc_KeyboardHook
+////	add (0, lparam);
+//	mov (lparam, eax);
+//	shl (1, eax);
+//	if (@s) then
+//		// key release
+////		ui.write ("Hooked on : ", wparam,nl );
+//	endif;
+//	xor (eax, eax);
+//end Proc_KeyboardHook;

@@ -1,0 +1,10 @@
+Project Info
+
+Job: Arayna
+	Builds all modules in GUI and Arayna language interpreter.
+	
+Job: run gen
+	Executing script to run "gen" on gensrc.txt
+	This produces genLexer.hla and genLexer.hhf according to
+	the gen script in gensrc.txt
+	

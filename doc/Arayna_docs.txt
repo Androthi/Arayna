@@ -1,0 +1,113 @@
+Arayna structured scripting language concept
+
+Instructions
+	.arayna {}
+		
+		every arayna script must begin with an .arayna section.
+		all the following instructions may only appear within an arayna section.
+	
+	.var {}
+	.const {}
+	
+		valid in .arayna and .section
+		declares a variant or constants section.
+		variants are variables that may be altered through the course of execution.
+		constants as the name implies remain constant.
+		if declared in .arayna section, symbols have a global scope.
+		if declared in .section, symbols have local scope.
+					
+		within a .var and .const, declarations are made:
+			<id> = <initial_value>
+
+		where <initial_value>
+			initial_value may be a
+				integer	+/- number	25, -25
+				real		+/- real		2.4, -2.4
+				a string					"one line or"
+											"multi line"
+				an expression			25*6-4/12
+				
+
+		records are supported in .var and .const, declarations are made:
+			<id> {
+				<field_id> = <initial_value>
+				[<field_id> = <initial_value>]	
+			}
+		
+		accessing symbols, when global scope, use the symbol name directly.
+		when local scope, use section name directly while in the declared section.
+		to access record fields, use a dot notation:
+		<id>.<record_field>
+		
+		to access symbols local to a section from somewhere outside of the section
+		use the section id and dot notation.
+		
+		<section_id>.<section_local>
+		
+		you may use dot notation to access deeper nested record fields.
+		a record field from a symbol local to a non-local section, use:
+		<section_id>.<section_local_record>.<section_local_record_field>
+		
+		special features avialable only in .const sections
+		
+		declaring a constant identifier followed by a period '.'
+		sets the value of the constant based on an internal counter
+		and increments the counter.
+		
+		@counter = n
+			
+			sets the internal counter to the value of n
+	
+	.include "file name"
+	
+		opens "file name" and continues compiling from that file.
+		
+		
+	
+	.begin {}
+	
+		this defines the entry point of the arayna script where execution begins
+		after compile.
+		
+	.section {}
+	
+		sections define procedures/functions that may be called implicitly or explicitly.
+		for the most part, instructions valid in the .begin section are also valid in a .section
+		
+	
+	.write( <parameters[]> )
+	
+		valid in .begin and .section
+		writes text to the main window, takes comma delimited paramters.
+		paramters may be quoted strings, constants, variants, object fields, etc.
+		special parameter 'nl' (without the quotes) stands for new line.
+		
+		eg:
+		.write( "a string", nl, someVariant, nl, someConstant, nl )
+
+	.cls
+	
+		valid in .being and .section
+		clears the main window text.
+	
+			
+	.id = n
+	
+		used in game objects to set the object id.
+		this id is used by arayna when creating or tallying objects
+		
+	.label = string
+
+		used in game objects to name the object
+		also used in .arayna section to identify the module name
+		
+	.desc = string
+	
+		used in game objects to describe the object
+		also used in .arayna section to identify the module description
+
+
+Comments
+/* this is for block comments */
+// this is for line comments
+

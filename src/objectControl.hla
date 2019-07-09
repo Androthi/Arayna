@@ -1,0 +1,1200 @@
+
+unit objectcontrol;
+
+#include ("src/arayna.hhf")
+?@nodisplay := true;
+?@nostackalign := true;
+
+readonly
+	arayna_agentClassVMT		:VMT( arayna_agentClass );
+	arayna_baseClassVMT	:VMT (arayna_baseClass);
+	arayna_areaClassVMT	:VMT (arayna_areaClass);
+	arayna_objectClassVMT :VMT (arayna_objectClass);
+	arayna_itemClassVMT	:VMT (arayna_itemClass);
+	arayna_containerClassVMT :VMT (arayna_containerClass);
+	arayna_roomClassVMT	:VMT (arayna_roomClass);
+	arayna_playerClassVMT:VMT (arayna_playerClass);
+	arayna_topicClassVMT	:VMT (arayna_topicClass );
+
+procedure arayna_baseClass.create; @noframe;
+begin create;
+	push (eax);
+	if (esi = NULL) then
+		mem.zalloc (@size(arayna_baseClass));
+		mov (eax, esi);
+	endif;
+
+	mov (&arayna_baseClass._VMT_, this._pVMT_);
+	pop (eax);
+	ret();
+end create;
+
+method arayna_baseClass.destroy;	@noframe;
+begin destroy;
+USE (EAX);	
+	//dbg.put("DESTROY :", esi);
+	if( mem.isInHeap( esi )) then
+		mem.free( esi );
+	endif;
+ENDUSE;
+ret();
+end destroy;
+
+
+method arayna_baseClass.runEvent; @noframe;
+begin runEvent;
+	USE( ESI, ECX, EBX);
+		//dbg.put ("runEvent");
+		mov( esi, game.thisobject );		
+		mov( this.event, esi ); 
+		if( esi ) then
+			genLex( esi );
+			if( eax = gen_lbrace ) then
+				
+				// nameless embedded section
+				mov( game.thisobject, ebx );
+				if( testnz( rtti_room, objebx.rtti ) ) then
+					str.put(genID, "ROOM@", objebx.id );
+				else
+					str.put(genID, "OBJ@", objebx.id );
+				endif;
+				
+			endif;
+			
+			//dbg.put ("event = ", genID );
+			executeSection( genID );
+		else
+			//dbg.put ("no event");
+			xor( eax, eax );
+		endif;
+		//dbg.put ("/runEvent :", eax);
+	ENDUSE;
+	ret();
+end runEvent;
+
+method arayna_baseClass.getVital (attrib:dword; var attr:attr_t);
+begin getVital;
+USE (EAX, EBX);
+	//dbg.put("base vital");
+	mov (attrib, eax);  //dbg.put ("baseClass.getVital: ", attrib);
+	mov (attr, ebx);
+
+	if (eax = attr_id) then
+		mov (this.id, eax);
+		mov (eax, attrebx.id);
+		mov (type_int, attrebx.atype);
+		mov( var_tc, attrebx.tc );
+		mov( 0, attrebx.function );
+		clc();
+		
+	elseif (eax = attr_label) then
+
+		lea( eax, this.lbl );
+		copyAttr( eax, ebx );
+		if( attrebx.atype = 0 ) then
+			mov( type_int, attrebx.atype );
+			mov( var_tc, attrebx.tc );
+			mov( 0, attrebx.function );
+		endif;
+		clc();
+		
+	else
+		// we want the object itself
+		mov (esi, attrebx.id);
+		mov( var_tc, attrebx.tc );
+		mov( 0, attrebx.function );
+		clc();
+		
+	endif;
+
+ENDUSE;
+end getVital;
+
+method arayna_baseClass.setVital (attrib:dword; var attr:attr_t);
+begin setVital;
+	//dbg.enters( "setVital" );
+	USE (EBX);
+	mov (attrib, eax);
+	mov (attr, ebx);
+	if (eax = attr_id) then
+		if (attrebx.atype = type_int) then
+			mov (attrebx.id, eax);
+			mov (eax, this.id);
+			clc();
+		else
+			showerror ("Incompatible types during changing object pointer value");
+		endif;
+		
+	elseif (eax = attr_label) then
+		
+		if( attrebx.atype = type_strconst || attrebx.atype = type_string ) then
+			lea( ecx, this.lbl );
+			freeAttr( [ecx] );
+			copyAttr( ebx, ecx );
+			if( attrebx.tc = var_tc && attrebx.atype = type_string ) then
+				str.a_cpy( attrebx.id );
+				mov( eax, attrecx.id );
+			endif;
+			clc();
+		else
+			showerror ("Incompatible types for object lable, expecting a string");
+		endif;
+		
+	else
+		
+		showerror( "Unknown type for object" );
+		
+	endif;
+	ENDUSE;
+	//dbg.exits( "setVital" );
+end setVital;
+
+method arayna_baseClass.setLabel( var attr:attr_t );
+begin setLabel;
+
+	mov( attr, eax );
+	if( attreax.atype = type_strconst ) then
+		
+		lea( edi, this.lbl );
+		copyAttr( eax, edi );
+		clc();
+		
+	elseif( attreax.atype = type_string ) then
+		
+		str.a_cpy( attreax.id );
+		mov( eax, this.lbl.id );
+		mov( type_string, this.lbl.atype );
+		clc();
+		
+	else
+		showerror( "unsupported type for item label.  Must be a string object" );
+	endif;
+
+end setLabel;
+
+
+method arayna_baseClass.brieflyDescribe( hlist:dword );
+begin brieflyDescribe;
+	//dbg.put("hlist in describe :", hlist );
+	USE( EAX );
+	loadString( this.lbl, buffer_str );
+	//if( testnz( is_on, this.state ) ) then
+	//	str.insert3( "*", 0, buffer_str );
+	//endif;
+
+	if( str.length( buffer_str) ) then
+		ui.addlist( hlist, esi, buffer_str );
+	endif;
+	ENDUSE;
+end brieflyDescribe;
+
+
+method arayna_baseClass.setDesc( var attr :attr_t );
+begin setDesc;
+	//dbg.put("set desc");
+	mov( attr, eax );
+		
+	if( attreax.atype = type_strconst ) then
+		
+		lea( edi, this.desc );
+		copyAttr( eax, edi );
+		clc();
+		
+	elseif( attreax.atype = type_string ) then
+		
+		str.a_cpy( attreax.id );
+		mov( eax, this.desc.id );
+		mov( type_string, this.desc.atype );
+		clc();
+		
+	else
+		//dbg.put("error desc");
+		showerror( "unsupported type for item description.  Must be a string object" );
+		
+	endif;
+	//dbg.put("/set desc");
+end setDesc;
+
+
+//======================================================================================
+
+
+procedure arayna_areaClass.create; @noframe;
+begin create;
+	push (eax);
+	if (esi = NULL) then
+		mem.zalloc (@size(arayna_areaClass));
+		mov (eax, esi);
+	endif;
+	
+	(type arayna_baseClass[esi]).create();
+	mov (&arayna_areaClass._VMT_, this._pVMT_);
+	or (rtti_area, this.rtti);
+	pop (eax);
+	ret();
+end create;
+
+//===========================================================================================
+
+procedure arayna_topicClass.create; @noframe;
+begin create;
+	push( eax );
+	if( esi = NULL ) then
+		mem.zalloc( @size( arayna_topicClass ) );
+		mov( eax, esi );
+	endif;
+	
+	(type arayna_baseClass[esi]).create();
+	
+	mov( 0, this.desc.id );
+	mov( type_int, this.desc.atype );
+	mov( &arayna_topicClass._VMT_, this._pVMT_ );
+	or( rtti_topic, this.rtti );
+	pop( eax );
+	ret();
+end create;
+
+
+method arayna_topicClass.runEvent;
+	var
+		updateNeeded	:dword;
+		rtti				:dword;
+		
+begin runEvent;
+	
+	// topicClass have 2 optional events
+	// deactivate and activate
+	// deactivate has priority
+	
+	mov( false, updateNeeded );
+	mov( this.rtti, eax );
+	//dbg.put("rtti = ", eax );
+	mov( eax, rtti );
+	if( this.deactivate ) then
+		push( esi );
+		mov( this.deactivate, esi );
+		if( testnz( rtti_topic, eax )) then
+			parseActivate( false );
+		else
+			parseCommands( false );
+		endif;
+		pop( esi );
+		cmp( eax, gen_error );	je done;
+		mov( true, updateNeeded );
+	endif;
+	
+	mov( rtti, eax );
+	if( this.activate ) then
+		push( esi );
+		mov( this.activate, esi );
+		if( testnz( rtti_topic, eax )) then
+			parseActivate( true );
+		else
+			parseCommands( true );
+		endif;
+		pop( esi );
+		cmp( eax, gen_error );	je done;
+		mov( true, updateNeeded );
+	endif;
+		
+	if( updateNeeded ) then
+		if( testnz( rtti_topic, rtti ) ) then
+			setupTopics();
+		else
+			setupCommands();
+		endif;
+	endif;
+	
+	super.runEvent();
+	//call( arayna_baseClassVMT[ @offset( arayna_baseClass.runEvent ) ] );
+	done:
+end runEvent;
+
+
+procedure arayna_objectClass.create; @noframe;
+begin create;
+	push( eax );
+	if( esi = NULL ) then
+	
+		mem.zalloc( @size( arayna_objectClass ));
+		mov( eax, esi );
+	
+	//else
+	//	mem2.fillMem ([esi], @size (arayna_objectClass), 0);
+	endif;
+	
+	(type arayna_topicClass [esi]).create();
+	
+	//mov( 0, this.desc.id );
+	//mov( type_int, this.desc.atype );
+	mov( &arayna_objectClass._VMT_, this._pVMT_ );
+	or ( rtti_object, this.rtti);
+	pop (eax);
+	ret();
+end create;
+
+//method arayna_objectClass.destroy; @noframe;
+//begin destroy;
+//	call( arayna_baseClassVMT[ @offset( arayna_baseClass.destroy ) ] );
+//	ret();
+//end destroy;
+
+
+
+method arayna_objectClass.fullyDescribe; @noframe;
+begin fullyDescribe;
+	push (eax);
+	
+	loadString( this.desc, buffer_str );
+	if( str.length( buffer_str ) ) then
+		ui.write( buffer_str, nl nl );
+	endif;
+	
+	if ( testnz (is_on, this.state )) then
+		loadString( this.lbl, buffer_str );
+		ui.write (buffer_str, " is in use", nl nl);
+	endif;
+
+	pop (eax);
+	//dbg.put ("/objectClass.fullyDescribe");
+	ret();
+end fullyDescribe;
+
+method arayna_objectClass.setVerbs (attribptr:dword);
+begin setVerbs;
+USE (eax);
+	lea (eax, this.verbs);
+	copyLword (attribptr, eax);
+ENDUSE;	
+end setVerbs;
+
+method arayna_objectClass.getVerbs; @noframe;
+begin getVerbs;
+USE (eax);
+	lea (eax, this.verbs);
+	copyLword (eax, &id_attrib);
+ENDUSE;
+ret();
+end getVerbs;
+
+method arayna_objectClass.getVital ( attrib:dword; var attr:attr_t);
+begin getVital;
+USE (EAX, EBX);
+	//dbg.put ("objectClass.getVital");
+	mov (attrib, eax);
+	mov (attr, ebx);
+	if (eax = attr_desc) then
+
+		lea( eax, this.desc );
+		copyAttr( eax, ebx );
+		if( attrebx.atype = 0 ) then
+			mov( type_int, attrebx.atype );
+			mov( var_tc, attrebx.tc );
+			mov( 0, attrebx.function );
+		endif;
+
+		clc();
+	
+	elseif (eax = attr_key) then
+		mov (this.key, eax);
+		mov (eax, attrebx.id);
+		mov (type_int, attrebx.atype);
+		mov( var_tc, attrebx.tc );
+		mov( 0, attrebx.function );
+		clc();
+		
+	elseif (eax = attr_state) then
+		mov( this.state, eax );
+		mov( eax, attrebx.id );
+		mov( type_int, attrebx.atype );
+		mov( var_tc, attrebx.tc );
+		mov( 0, attrebx.function );
+		clc();
+	
+	elseif( eax = attr_group || eax = attr_area ) then
+		
+		mov( this.group, eax );
+		mov( eax, attrebx.id );
+		mov( type_int, attrebx.atype );
+		mov( var_tc, attrebx.tc );
+		mov( 0, attrebx.function );
+		clc();
+	
+	else
+		
+		super.getVital( attrib, attr );
+		//push (attrib);
+		//push (attr);
+		//call( arayna_baseClassVMT[ @offset( arayna_baseClass.getVital ) ] );
+	endif;
+	
+	//dbg.put( "/objectClass.getVital" );
+ENDUSE;
+end getVital;
+
+method arayna_objectClass.setVital ( attrib:dword; var attr:attr_t);
+begin setVital;
+USE (EAX, EBX);
+	mov (attrib, eax);
+	mov (attr, ebx);
+	if (eax = attr_desc) then
+
+		if( attrebx.atype = type_strconst || attrebx.atype = type_string ) then
+			lea( ecx, this.desc );
+			freeAttr( [ecx] );
+			copyAttr( ebx, ecx );
+			if( attrebx.tc = var_tc && attrebx.atype = type_string ) then
+				str.a_cpy( attrebx.id );
+				mov( eax, attrecx.id );
+			endif;
+		else
+			showerror ("Incompatible types for object desc, expecting a string");
+		endif;
+		
+	elseif (eax = attr_key) then
+		if (attrebx.atype = type_int) then
+			mov (attrebx.id, eax);
+			mov (eax, this.key);
+			clc();
+		else
+			showerror ("Incompatible variable type for setting key, expecting integer");
+		endif;
+		
+	elseif (eax = attr_state) then
+		if (attrebx.atype = type_int) then
+			mov( attrebx.id, eax );
+			mov( eax, this.state );
+			clc();
+		else
+			showerror ("Incompatible variable type for setting state, expecting integer");
+		endif;
+	else
+		
+		super.setVital( attrib, attr );
+		//push (attrib);
+		//push (attr);
+		//call( arayna_baseClassVMT[ @offset( arayna_baseClass.setVital ) ] );
+	endif;
+ENDUSE;
+end setVital;
+
+
+procedure arayna_itemClass.create; @noframe;
+begin create;
+//dbg.put ("arayna_itemClass.create");
+	push (eax);
+	if (esi = NULL) then
+		mem.zalloc ( @size (arayna_itemClass));
+		mov (eax, esi);
+	endif;
+	(type arayna_objectClass [esi]).create();
+	
+	// Initialize the item-specific fields:
+	mov( &arayna_itemClass._VMT_, this._pVMT_ );
+	or (rtti_item, this.rtti);
+	pop (eax);
+	ret();
+end create;
+
+
+method arayna_itemClass.useCharge; @noframe;
+begin useCharge;
+	if (this.charges > 0) then
+		dec (this.charges);
+	endif;
+	mov (this.charges, eax);
+	ret();
+end useCharge;
+
+method arayna_itemClass.fullyDescribe; @noframe;
+begin fullyDescribe;
+
+	push (eax);
+	//call( arayna_objectClassVMT[ @offset( arayna_objectClass.fullyDescribe ) ] );
+	
+	super.fullyDescribe();
+	if ( this.charges <> 0 ) then
+		ui.write ("Charges left : ", this.charges, nl);
+	endif;
+	pop (eax);
+
+	ret();
+end fullyDescribe;
+
+method arayna_itemClass.getVital ( attrib:dword; var attr:attr_t);
+begin getVital;
+USE (EAX, EBX);
+	//dbg.put("item vital :", attrib );
+	mov (attrib, eax);
+	mov (attr, ebx);
+	switch (eax);
+	case (attr_charges)
+		mov (this.charges, eax);
+		mov (eax, attrebx.id);
+		mov (type_int, attrebx.atype);
+		mov( var_tc, attrebx.tc );
+		mov( 0, attrebx.function );
+		clc();
+		
+	case (attr_maxcharge)
+		mov (this.maxcharge, eax);
+		mov (eax, attrebx.id);
+		mov (type_int, attrebx.atype);
+		mov( var_tc, attrebx.tc );
+		mov( 0, attrebx.function );
+		clc();
+		
+	case( attr_stack )
+		mov (this.stack, eax);
+		mov (eax, attrebx.id);
+		mov (type_int, attrebx.atype);
+		mov( var_tc, attrebx.tc );
+		mov( 0, attrebx.function );
+		clc();
+		
+	case( attr_maxstack )
+		mov (this.maxstack, eax);
+		mov (eax, attrebx.id);
+		mov (type_int, attrebx.atype);
+		mov( var_tc, attrebx.tc );
+		mov( 0, attrebx.function );
+		clc();
+		
+	default
+		
+		super.getVital( attrib, attr );
+		//push (attrib);
+		//push (attr);
+		//call( arayna_objectClassVMT[ @offset( arayna_objectClass.getVital ) ] );
+	endswitch;
+	
+ENDUSE;
+end getVital;
+
+method arayna_itemClass.setVital( attrib:dword; var attr:attr_t);
+begin setVital;
+USE (EAX, EBX);
+	mov (attrib, eax);
+	mov (attr, ebx);
+	switch (eax);
+	case (attr_charges)
+		if (attrebx.atype = type_int) then
+			mov (attrebx.id, eax);
+			if (eax <= this.maxcharge) then
+				mov (eax, this.charges);
+				clc();
+			else
+				showerror ("attempting to set charges higher than max charge");
+			endif;
+		else
+			showerror ("Incompatible type for charges, expecting integer");
+		endif;
+		
+	case (attr_maxcharge)
+		if (attrebx.atype = type_int) then
+			mov (attrebx.id, eax);
+			if (this.charges > eax) then
+				 mov (eax, this.charges);
+			endif;
+			mov (eax, this.maxcharge);
+			clc();
+		else
+			showerror ("Incompatible type for maxcharge, expecting integer");
+		endif;
+
+	case( attr_stack )
+		if (attrebx.atype = type_int) then
+			mov (attrebx.id, eax);
+			mov (eax, this.stack);
+			clc();
+		else
+			showerror ("Incompatible type for setting stack amount, expecting integer");
+		endif;
+		
+	case( attr_maxstack )
+		if (attrebx.atype= type_int) then
+			mov (attrebx.id, eax);
+			mov (eax, this.maxstack);
+			clc();
+		else
+			showerror ("Incompatible type for setting maxamount, expecting integer");
+		endif;
+
+	default
+		
+		super.setVital( attrib, attr );
+		//push (attrib);
+		//push (attr);
+		//call( arayna_objectClassVMT[ @offset( arayna_objectClass.setVital ) ] );
+	endswitch;
+ENDUSE;
+end setVital;
+
+
+//method arayna_itemClass.destroy;	@noframe;
+//begin destroy;
+//	push (eax);
+//	call( arayna_objectClassVMT[ @offset( arayna_objectClass.destroy ) ] );
+//	pop (eax);
+//	ret();
+//end destroy;
+
+
+method arayna_itemClass.brieflyDescribe( hlist:dword );
+begin brieflyDescribe;
+USE (EAX);
+	if( this.stack > 0 ) then
+		loadString (this.lbl, buffer_str );
+		//if( testnz( is_on, this.state ) ) then
+		//	str.insert3( "*", 0, buffer_str );
+		//endif;
+		str.put2 (buffer_str, " [", this.stack, "]");
+		ui.addlist (hlist, esi, buffer_str);
+	else
+		
+		super.brieflyDescribe( hlist );
+		//push( hlist );
+		//call( arayna_baseClassVMT[ @offset( arayna_baseClass.brieflyDescribe )]);
+	endif;
+ENDUSE;
+end brieflyDescribe; 
+
+
+procedure arayna_containerClass.create; @noframe;
+begin create;
+
+	push( eax );
+	if( esi = NULL ) then
+	
+		mem.zalloc( @size( arayna_containerClass ));
+		mov( eax, esi );
+		
+	endif;
+	
+	(type arayna_objectClass [esi]).create();
+	
+	// Initialize the arayna_containerClass-specific fields:
+	mov( &arayna_containerClass._VMT_, this._pVMT_ );
+	or (rtti_container, this.rtti);
+	
+	// Create a contains list for this object. Initially,
+	// the list will be empty.
+	USE (ESI, EDI);
+		arayna_listClass.create();
+		mov( esi, eax );	// Save ptr to "list".
+	ENDUSE;
+	mov( eax, this.contains );
+	pop( eax );
+	ret();	
+end create;
+
+method arayna_containerClass.addObject (objPtr:dword); //@alignstack;
+
+	var
+		_list	:pointer to arayna_listClass;
+		searchNo	:uns32;
+		match	:dword;
+
+begin addObject;
+USE (EAX, ECX, EDI, EBX, EDX, ESI);
+	//dbg.put ("arayna_containerClass.addObject");
+	//dbg.separator;
+	
+	mov( esi, game.added );
+	mov (this.contains, _list);
+	mov (false, match);
+	
+	mov (objPtr, eax);
+	move (baseeax.id, searchNo);
+	if (testnz ( rtti_stackable, baseeax.rtti)) then
+		
+		// dbg.put ("stackable object");
+		// stackable objects.  First, search for object in list
+		// if found, then append items, sort out for max stack
+		// and create a new object if necessary
+		// if not in list, just add as is.
+		_list.getHead();
+		mov (eax, ebx);
+		while (ebx) do
+			mov (listnodeebx.obj, edx);
+			mov (baseedx.id, eax);
+			if (eax = searchNo) then
+				mov (true, match);
+				mov (objPtr, ecx);
+				mov (itemecx.stack, edi);
+				if ( itemedx.maxstack = 0 ) then
+					add (edi, itemedx.stack);
+					mem.free (ecx);
+					break;
+				endif;
+				
+				mov (itemedx.stack, eax);
+				add (eax, edi);
+				if (edi > itemedx.maxstack) then
+					mov (itemedx.maxstack, eax);
+					mov (eax, itemedx.stack);
+					sub (eax, edi);
+					if (@z) then
+						// no more to combine
+						mem.free (objPtr);
+						break;
+					endif;
+					
+					// some left over.
+					// continue search.
+					mov (edi, itemecx.stack);
+					mov (false, match);
+					
+				else
+					mov( edi, itemedx.stack);
+					mem.free (objPtr);
+					break;
+				endif;				
+					
+				
+			endif;
+			
+			mov (listnodeebx.next, ebx);
+			
+		endwhile;
+
+		if (! match) then
+			mov (objPtr, eax);
+			jmp _addobj;
+		endif;
+		
+	else
+		_addobj:
+		//dbg.put ("container adding :", baseeax.id);
+		_list.appendObject ([eax]);
+
+	endif;
+	
+	if( game.status ) then
+		
+		// only run this event if the script is loaded
+		// and object added rather than spawned.
+		// this must also be disabled when loading a game
+		
+		push( eax );
+		push( game.lastaction );
+		mov( 0, game.lastaction );
+		mov( objPtr, esi );
+		objesi.runEvent();
+		mov( 0, game.added );
+		pop( game.lastaction );
+		pop( eax );
+	endif;	
+	//mov( esp, eax );
+	//dbg.put(">>", eax );
+	
+ENDUSE;
+end addObject;
+
+
+method arayna_containerClass.destroy;
+begin destroy;
+
+	push( eax );
+	
+	push( esi );
+	mov( this.contains, esi );
+//	ype arayna_listClass [esi]).destroy();
+	listesi.empty();
+	pop( esi );
+	
+	// Call the parent's destructor to deallocate this object:
+	super.destroy();
+	//call( arayna_objectClassVMT[ @offset( arayna_objectClass.destroy ) ] );
+	
+	pop( eax );
+
+end destroy;
+
+method arayna_containerClass.inventory;
+
+	var
+		hlist	:dword;
+		
+
+begin inventory;
+	//dbg.put ("inventory");
+USE (EAX, ESI, EBX);
+	
+	if( testnz( rtti_player, this.rtti )) then
+		move( hlistinv, hlist );
+	else
+		move( hlistdisp, hlist );
+	endif;
+	
+	//if( testnz( rtti_room, this.rtti )) then
+	//	move( hlistdisp, hlist );
+	//else
+	//	move( hlistinv, hlist );
+	//endif;
+	
+	ui.clearlist( hlist );
+	
+	mov( this.contains, esi );
+	listesi.getHead();
+	mov (eax, ebx);
+	while (ebx) do
+		mov (listnodeebx.obj, esi);
+		baseesi.brieflyDescribe( hlist );
+		mov ( listnodeebx.next, ebx);
+	endwhile;
+	
+ENDUSE;
+	//dbg.put ("/inventory");
+end inventory;
+
+method arayna_containerClass.moveInventory (dest:dword);
+
+	var
+		_list	:pointer to arayna_listClass;
+		return	:dword;
+
+begin moveInventory;
+USE (ESI, ECX, EBX);	
+	//dbg.put ("move inventory");
+	mov (this.contains, _list);
+	mov (0, return);
+	mov ( _list.getHead(), ebx);
+	while (ebx) do
+		
+		mov (dest, eax);
+		mov (listnodeebx.obj, ecx);
+		(type arayna_containerClass[eax]).addObject ( listnodeebx.obj );
+		mov (listnodeebx.next, EBX);
+		or (1, return);
+	endwhile;
+	// now empty out the current container
+	_list.empty();
+	
+	mov( game.curroom, esi );
+	roomesi.inventory();
+	mov( game.pc, esi );
+	pcesi.inventory();
+	mov (return, eax);
+ENDUSE;
+	//dbg.put ("/moveInventory");
+end moveInventory;
+
+method arayna_containerClass.emptyInventory;
+begin emptyInventory;
+
+	USE (ESI, EAX, EBX);
+	//dbg.separator;
+	mov (this.contains, esi );
+	push( esi );
+	listesi.getHead();
+	mov( eax, ebx );
+	while (ebx) do
+		mov (listnodeebx.obj, esi);
+		if( testnz( rtti_container, objesi.rtti ) ) then
+			containeresi.emptyInventory();
+		endif;
+		mem.free(esi);  // do not destroy since these are object clones
+		mov (listnodeebx.next, ebx);
+	endwhile;
+	pop( esi );
+	listesi.empty();
+	
+	ENDUSE;	
+end emptyInventory;
+
+method arayna_containerClass.searchOrdinal (objNum:uns32);
+begin searchOrdinal;
+USE (ESI, EBX);
+	mov( this.contains, ebx );
+	(type arayna_listClass[ebx]).findNodeID ( objNum );
+	if( eax ) then
+		mov( listnodeeax.obj, eax );
+	endif;
+ENDUSE;
+end searchOrdinal;
+
+method arayna_containerClass.searchLabel ( theLabel: string);
+begin searchLabel;
+USE (ESI, EBX);
+	mov (this.contains, esi);
+	listesi.getHead();
+	mov( eax, ebx );
+	while( ebx ) do
+		mov( listnodeebx.obj, eax );
+		loadString( objeax.lbl, buffer_str );
+		breakif( str.eq( buffer_str, theLabel ));
+		mov( listnodeebx.next, ebx );
+	endwhile;
+	mov( ebx, eax );
+ENDUSE;
+end searchLabel;
+
+method arayna_containerClass.searchObj( theObject:dword );
+begin searchObj;
+//dbg.put ("searching :", theObject);
+USE (ESI);
+	mov( this.contains, eax );
+	listeax.findObject (val theObject);
+ENDUSE;
+end searchObj;
+
+method arayna_containerClass.removeObj( theObject:dword );
+	var
+		lastaction	:dword;
+		
+begin removeObj;
+USE (ESI);
+	//dbg.put ("removeObj :", theObject);
+	
+	mov( esi, game.removed );
+	
+	if (this.searchObj (theObject)) then
+		push(listnodeeax.obj);
+		move( game.lastaction, lastaction );
+		mov( 0, game.lastaction );
+		mov (this.contains, esi);
+		listesi.remove ([eax]);
+		pop (esi);
+		
+		if( game.status ) then
+			objesi.runEvent();
+		endif;
+		
+		mov( 0, game.removed );
+		move( lastaction, game.lastaction );
+		mov( esi, eax );
+		
+	else
+		showerror ("Can't remove object, not found in container!");
+	endif;
+ENDUSE;
+end removeObj;
+
+procedure arayna_roomClass.create;	@noframe;
+
+begin create;
+
+	push( eax );
+	if( esi = NULL ) then
+	
+		mem.zalloc( @size( arayna_roomClass ));
+		mov( eax, esi );
+		
+	endif;
+	
+	// Call the ancestor create function to initialize
+	// the "object" fields:
+	
+	(type arayna_containerClass [esi]).create();
+	
+	// We need to set the VMT field to point at our actual VMT:
+	
+	mov( &arayna_roomClass._VMT_, this._pVMT_ );
+	
+	// Create an agents list for this object. Initially,
+	// the list will be empty.
+	
+	or (rtti_room, this.rtti);
+	
+	pop( eax );
+//	dbg.put ("done create ROOM");
+	ret();	
+end create;
+
+
+method arayna_roomClass.enterRoom;
+	// called when player enters room
+	var
+		pcp	:pcPtr;
+
+begin enterRoom;
+USE (EBX);
+	//dbg.cls;
+	//dbg.put ("enterroom");
+	call UpdateNavigation;
+	call SetInfo; 
+
+	//w.SendMessage (hwnd, ARAYNA_CLS, 0, 0);
+	ui.write( nl, nl, sep, nl nl );
+	this.fullyDescribe();
+	ui.write( nl nl );
+
+//
+//	USE( ESI, EBX );
+//	history.insert( nl, sep, nl, nl );
+//	w.SendMessage( hedit, w.WM_GETTEXTLENGTH, 0, 0 );
+//	push( history.cursor );
+//	mov( eax, ebx );
+//	history.insertSet( ' ', ebx );
+//	pop( history.cursor );
+//	mov( history.cursor, eax );
+//	dec( ebx );
+//	w.SendMessage( hedit, w.WM_GETTEXT, ebx, history.cursor );
+//	history.cursorToEOF();
+//	history.insert( nl, nl, sep, nl );
+//	mov( history.cursor, eax );
+//	ENDUSE;
+//		
+	this.runEvent();
+		
+	if (game.status) then
+		this.inventory();
+	endif;
+ENDUSE;
+//dbg.put ("/enterRoom");
+end enterRoom;
+
+
+
+procedure arayna_playerClass.create; @noframe;
+	
+begin create;
+
+	push( eax );
+	if( esi = NULL ) then
+	
+		mem.zalloc( @size( arayna_playerClass ));
+		mov( eax, esi );
+		
+	endif;
+
+	(type arayna_containerClass [esi]).create();
+	
+	mov( &arayna_playerClass._VMT_, this._pVMT_ );
+
+	or (rtti_player, this.rtti);
+	pop( eax );
+	ret();	
+end create;
+
+
+method arayna_playerClass.getVital ( attrib:dword; var attr:attr_t);
+begin getVital;
+USE (EBX);
+	//dbg.put ("player, getVital");
+
+	mov (attrib, eax);
+	switch (eax);
+	
+	case( attr_label )
+		
+		if( game.pcname > 0 ) then
+			mov( attr, ebx );
+			str.a_cpy( game.pcname );
+			mov( eax, attrebx.id );
+			mov (type_string, attrebx.atype);
+			mov( var_tc, attrebx.tc );
+			mov( 0, attrebx.function );
+			clc();
+			jmp done;
+			
+		else
+			jmp dodefault;
+		endif;
+	
+	default
+		dodefault:
+		super.getVital( attrib, attr );
+		
+		//push (attrib);
+		//push (attr);
+		//call( arayna_containerClassVMT[ @offset( arayna_containerClass.getVital ) ] );
+		jmp done;
+	endswitch;
+	
+	mov (attr, ebx);
+	mov (eax, attrebx.id);
+	mov (type_int, attrebx.atype);
+	mov( var_tc, attrebx.tc );
+	mov( 0, attrebx.function );
+	clc();
+	done:	
+ENDUSE;
+//dbg.put ("/player, getVital");
+end getVital;
+
+method arayna_playerClass.setVital ( attrib:dword; var attr:attr_t);
+begin setVital;
+USE (EAX, EBX, ECX);	
+
+	mov (attr, ecx);
+
+	if (attrecx.atype != type_int) then
+		
+		showerror ("Cannot change this attribute for @player");
+		jmp done;
+	endif;
+	
+	mov (attrecx.id, ecx);
+	mov (attrib, eax);
+	switch (eax);
+
+	case( attr_label )
+		if( game.pcname > 0 ) then
+			str.free( game.pcname );
+			mov( 0, game.pcname );
+		endif;
+		jmp dodefault;
+
+	default
+		dodefault:
+		
+		super.setVital( attrib, attr );
+		//push (attrib);
+		//push (attr);
+		//call( arayna_containerClassVMT[ @offset( arayna_containerClass.setVital ) ] );
+		jmp done;
+
+
+	endswitch;
+	clc();
+done:
+ENDUSE;
+end setVital;
+
+procedure arayna_agentClass.create; @noframe;
+begin create;
+//dbg.put ("object.create");
+	USE (EAX);
+	if( esi = NULL ) then
+	
+		mem.zalloc( @size( arayna_agentClass ));
+		mov( eax, esi );
+		
+	endif;
+	
+	(type arayna_containerClass [esi]).create();
+	
+	mov( &arayna_agentClass._VMT_, this._pVMT_ );
+	or (rtti_agent, this.rtti);
+
+	ENDUSE;
+	ret();
+end create;
+
+
+//method arayna_agentClass.getVital ( attrib:dword; var attr:attr_t);
+//begin getVital;
+//USE (EAX);
+//	//dbg.put("agent vital");
+//	push (attrib);
+//	push (attr);
+//	call( arayna_containerClassVMT[ @offset( arayna_containerClass.getVital ) ] );		
+//	
+//ENDUSE;	
+//end getVital;
+
+//
+//method arayna_agentClass.setVital ( attrib:dword; var attr:attr_t);
+//begin setVital;
+//USE (EAX);
+//
+//	push (attrib);
+//	push (attr);
+//	call( arayna_containerClassVMT[ @offset( arayna_containerClass.setVital ) ] );		
+//
+//ENDUSE;	
+//end setVital;
+
+end objectcontrol;

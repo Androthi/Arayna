@@ -1,0 +1,26 @@
+unit combatunit;
+	
+	#include ("src/arayna.hhf")
+	?@nodisplay := true;
+
+procedure roll100; @noframe;
+begin roll100;
+USE (ECX);
+	xor (ecx, ecx);
+	_again:
+	rand.range (1, 100);
+	add (eax, ecx);
+	cmp (eax, 96);
+	ja _again;
+	cmp (ecx, 255);
+	jna _end;
+	mov (255, ecx);
+	
+	_end:
+	mov (ecx, eax);
+ENDUSE;
+	ret();
+end roll100;
+
+	
+end combatunit;

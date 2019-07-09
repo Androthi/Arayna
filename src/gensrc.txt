@@ -1,0 +1,604 @@
+
+; replace default legal identifyer character set
+.goodid 	{'0'..'9', 'A'..'Z', 'a'..'z', '_' }, {};
+
+; increase default storage for id extraction
+.reserveid 256
+
+; use an external procedure to handle "quoted strings" of variant size.
+;.external proc stringToBuffer	:procedure( startPos:dword in edi; endPos:dword in esi ) { @returns("@nc") };
+
+; we want output in the src directory
+.output src/
+
+.binary {
+
+	; command list, called after a period is encountered
+	; in source
+	
+	.prefix tkn	
+	.typeclass cmd
+	.checkfunc checkCommand
+	.setcount 1000
+	
+	; completed keywords
+	arayna			include
+	begin				endgame			
+
+	const				var	 
+	area				define
+	player			agent
+	spawn				verbs
+	return			exits
+	charges			container
+	uses				key
+	desc				group			
+	getstring		getnumber
+	room				object
+	section 			state	
+	event				stack
+	id					label	
+	write				teleport		
+	wait				cls				
+	random			move
+	destroy			new
+	debug
+
+	if			else			elseif
+	while		break			forever
+	breakif	continue		continueif
+	
+	dialog			newdialog
+	begindialog		enddialog
+	activate			deactivate
+	
+	newcommands		command
+	addcommands		removecommands
+	
+	showcontrols	hidecontrols
+	showcommands	hidecommands
+	
+	intevent			intmove
+	verbevent		loadevent
+	saveevent
+	
+	openfile			newfile
+	existsfile		
+	
+}
+
+.binary {
+	.typeclass function
+	.checkfunc checkFunction
+	.prefix func
+	
+	has		;( obj ) search container inventory, return object
+	remove	;( obj ) same as above, also remove object
+	add		;( obj ) add object to container
+	exit		;( dir, room ) replace direction with new room
+	verbs		;( @verb, [] ) change verb set of object
+	state		;( @state, [] ) change state set of object
+	isstate	;( @state ) return true if state is true
+	event		;() runs the object event
+	inv		;{} runs section for each object
+				; object in @lastobject.id == 0 sent for last object or empty cont
+				; .continue, .continueif, .break, .breakif active
+				; original @lastobject after the loop
+	
+	write		;( <expr>, [] ) writes items to the file
+	read		;( <expr>, [] ) reads items from the file
+	save		;file objects, saves contents of file
+	close		;file objects, closes file
+				;supported write/read objects; string, integer, real
+	seek		;TODO: seek file index, each line = 1 index
+}
+
+
+.binary {
+
+	.typeclass direction
+	.checkfunc checkDirection
+	.prefix dir
+	
+	down				east				north
+	northeast		northwest		south
+	southeast		southwest		up
+	west				
+	
+	;?
+	;data	location npc
+}
+
+.binsearch {
+	; attributes list: generate fully isolated procedure
+	; within genLexer.hla
+	
+	.prefix attr
+	.checkfunc checkAttribute
+	.asunit
+	
+	;base
+	label				id
+	
+	;object
+	desc				key
+	group
+	
+	;room
+	area		;same as group
+	
+	;item
+	charges			maxcharge
+	state
+
+	;stackable
+	stack			maxstack	
+}
+
+.binary {
+	; action list: integrated into genLexer engine
+	; called after '@'
+	.prefix act
+	.checkfunc checkAction
+	.typeclass act
+	
+	; INFO
+	arayna
+	
+	; VERBS
+	; there should not be more than 128 of these
+	; in current implementation
+	;
+	;
+	;	some objects have special functionality
+	;
+	;	these set the object to '@on' state
+	;	push, activate, wield, wear
+	;
+	;	these set the object to '@off' state
+	;	pull, deactivate, unwield, remove
+	;
+	;	these 'use up' the object, removing a stack
+	;	use, eat, drink
+	;
+	;	these display the object desc string
+	;	examine, read
+	;
+	;	these pick up and drop the object from inventory
+	;	get, drop
+	;
+	;	this sets the object state to '@break'
+	;	break
+	;
+	;	this removes a state of '@break' from the object
+	;	fix
+	;
+	; sets special mode which for an object selection
+	; and sends message after new object selected in @lastobject
+	; usewith, useon, combine, target
+	;
+
+	search		get				drop			climb
+	wield			unwield			activate		deactivate
+	talk			wear				remove		steal
+	eat			drink				trade			query
+	use			examine			move			ask
+	give			attack			read			say
+	buy			sell				sing			swim
+	turnleft		turnright		clean			shoot
+	press			look
+	tie			untie				target
+	usewith		useon				combine
+	
+	; these ones can also be used in .state
+	on				pull		; synonymous
+	off			push		; synonymous
+	break			fix
+	open			close
+	lock			unlock
+	shop						; for rooms only, sets it up as a shop
+								; this is not implemented at code level
+								; if used, if must be done at script level.
+								; all shop does is determine which verbs
+								; are active in room inv vs. player inv.
+	special					; special state, for script writers
+	
+	; these are compound actions which are a combination
+	; of 2 or more of the above.  these do not count towards
+	; the 128 limit.
+	general		fooditem			wearable		drinkitem
+	wieldable
+	
+	; these are other action constants that do not count
+	; in the 128 limit
+	area			moves				player		fromroom
+	unlimited	lastaction		lastobject	this
+	room			counter			thisroom		lastverb
+	all			group				nl
+	
+	; object events only true when <obj>.add or <obj>.remove are used
+	added			; returns 0 = false, 1 = to player, 2 = to room inventory, 3 = to a container
+	removed		; returns 0 = false, 1 = from player, 2 = from room inventory, 3 = from a container
+}
+
+; add some special code to the genLexer
+.code {
+	
+	; activate automatic digit handling
+	.digits
+	
+	; add tokens for != <> == /= += ++ *= -= -- .. &&
+	; <= >= ||
+	.gentoken gen_notequal
+	.gentoken gen_equalequal
+	.gentoken gen_divequal
+	.gentoken gen_plusequal
+	.gentoken gen_plusplus
+	.gentoken gen_mulequal
+	.gentoken gen_minusequal
+	.gentoken gen_minusminus
+	.gentoken gen_dotdot
+	.gentoken gen_andop
+	.gentoken gen_lessequal
+	.gentoken gen_greaterequal
+	.gentoken gen_orop
+	.gentoken gen_xorop
+	
+	; add a token to return for quoted strings
+	.gentoken gen_string
+	.gentoken gen_strconst
+	
+	; other
+	.gentoken gen_variant
+	.gentoken gen_section
+	.gentoken gen_record
+	.gentoken gen_array
+	.gentoken gen_object
+	.gentoken gen_file
+	
+	; add some support typeclasses for use in
+	; evaluation
+	.gentype relop_tc
+	.gentype mulop_tc
+	.gentype andop_tc
+	.gentype addop_tc
+	.gentype orop_tc
+	.gentype mathop_tc
+	
+
+	.gentype const_tc
+	.gentype var_tc
+	.gentype null_tc
+	.gentype record_tc
+	.gentype section_tc
+	.gentype array_tc
+	.gentype file_tc
+	
+	; specific types
+	.gentype type_string
+	.gentype type_int	
+	.gentype type_real
+	.gentype type_strconst
+	.gentype type_object
+	.gentype type_record
+	.gentype type_section
+	.gentype type_internal
+	.gentype type_function
+	.gentype type_array
+	.gentype type_newline
+	
+	; replace the affected tokens
+	; notequal
+	.replace gen_exclaim
+	<code>
+		inc (esi);
+		if (esi < genEOF) then
+			if ( (type byte[esi]) = '=') then
+				inc (esi);
+				mov (relop_tc, ebx);
+				mov (gen_notequal, eax);
+			else
+				mov (gen_exclaim, eax);
+			endif;
+		else
+			mov (gen_eof, eax);
+		endif;
+		ret();
+	
+	</code>
+
+	; equalequal
+	.replace gen_equal
+	<code>
+		inc (esi);
+		if (esi < genEOF) then
+			if ( (type byte [esi]) = '=') then
+				inc (esi);
+				mov (gen_equalequal, eax);
+				mov (relop_tc, ebx);
+			else
+				mov (gen_equal, eax);
+				mov (mathop_tc, ebx);
+			endif;
+		endif;
+		ret();
+	
+	</code>
+
+	; divequal, comments
+	.replace gen_slash
+	<code>
+		inc (esi);
+		xor( eax, eax );
+		if (esi < genEOF) then	
+			mov ([esi],al);
+			if (al = '*') then
+				inc( ah );  // lex
+				inc( esi );
+				while ( esi < genEOF) do
+					if( (type byte[esi]) = '/' && ( type byte[esi+1]) = '*' ) then
+						inc( ah ); // increase lex
+						add( 2, esi );
+					elseif	( (type byte [esi]) = '*' && (type byte [esi+1]) = '/') then
+						add	(2, esi);
+						dec( ah );  // decrease lex
+						jz LexAgain;
+					elseif ( (type byte [esi]) = $a) then
+						inc (genLine);
+						inc( esi );
+					else
+						inc( esi );
+					endif;
+				welse
+					mov (gen_error, eax);
+				endwhile;
+			elseif (al = '/') then
+				while ( esi < genEOF) do
+					add	(1, esi);
+					if	( (type byte [esi])= $a ) then
+						inc (esi);
+						inc (genLine);
+						jmp LexAgain;
+					endif;
+				welse
+					mov (gen_error, eax);
+				endwhile;
+			elseif (al = '=') then
+				inc (esi);
+				mov (gen_divequal, eax);
+				mov (mathop_tc, ebx);
+			else
+				mov (gen_slash, eax);
+				mov (mulop_tc, ebx);
+			endif;
+		else
+			mov (gen_eof, eax);
+		endif;
+		ret();
+
+	</code>
+
+	
+	; plusequal, plusplus
+	.replace gen_plus
+	<code>
+		inc (esi);
+		if (esi < genEOF) then
+			mov ([esi], al);
+			if (al = '=') then
+				inc (esi);
+				mov (gen_plusequal, eax);
+				mov (mathop_tc, ebx);
+				
+			elseif (al = '+') then
+				inc (esi);
+				mov (gen_plusplus, eax);
+				mov (mathop_tc, ebx);
+				
+			else
+				mov (gen_plus, eax);
+				mov (addop_tc, ebx);
+			endif;
+		else
+			mov (gen_eof, eax);
+		endif;
+		ret();
+
+	</code>
+
+	; mulequal
+	.replace gen_asterisk
+	<code>
+		inc (esi);
+		if (esi < genEOF) then
+			mov ([esi], al);
+			if (al = '=') then
+				inc (esi);
+				mov (gen_mulequal, eax);
+				mov (mathop_tc, ebx);
+			else
+				mov (gen_asterisk, eax);
+				mov (mulop_tc, ebx);
+			endif;
+		else
+			mov (gen_eof, eax);
+		endif;
+		ret();
+
+	</code>
+
+	;modulo
+	.replace gen_percent
+	<code>
+		inc( esi );
+		if( esi < genEOF ) then
+			mov( gen_percent, eax );
+			mov( mulop_tc, ebx );
+		else
+			mov( gen_eof, eax );
+		endif;
+		ret();
+	</code>
+	
+	; xorop
+	.replace gen_caret
+	<code>
+		inc (esi);
+		mov (orop_tc, ebx);
+		mov (gen_xorop, eax);
+		ret();
+
+	</code>
+	
+	; minusequal, minusminus
+	.replace gen_minus
+	<code>
+		inc (esi);
+		if (esi < genEOF) then
+			mov ([esi], al);
+			if ( al = '=') then
+				inc (esi);
+				mov (gen_minusequal, eax);
+				mov (mathop_tc, ebx);
+			elseif (al = '-') then
+				inc (esi);
+				mov (gen_minusminus, eax);
+				mov (mathop_tc, ebx);
+			else
+				mov (gen_minus, eax);
+				mov (addop_tc, ebx);
+			endif;
+		else
+			mov (gen_eof, eax);
+		endif;
+		ret();
+		
+	</code>
+	
+	; lessequal, notequal
+	.replace gen_less
+	<code>
+		inc (esi);
+		if (esi < genEOF ) then
+			mov ([esi], al);
+			if (al = '=') then
+				mov (gen_lessequal, eax);
+				mov (relop_tc, ebx);
+				inc (esi);
+			elseif (al = '>') then
+				mov (gen_notequal, eax);
+				mov (relop_tc, ebx);
+				inc (esi);
+			else
+				mov (gen_less, eax);
+				mov (relop_tc, ebx);
+			endif;
+		else
+			mov (gen_eof, eax);
+		endif;
+		ret();
+
+	</code>
+	
+	; greaterequal
+	.replace gen_greater
+	<code>
+		inc (esi);
+		if( esi < genEOF) then
+			mov ([esi], al);
+			if (al = '=' ) then
+				mov (gen_greaterequal, eax);
+				mov (relop_tc, ebx);
+				inc (esi);
+			else
+				mov (gen_greater, eax);
+				mov (relop_tc, ebx);
+			endif;
+		endif;
+		ret();
+	
+	</code>
+
+	
+	; andop
+	.replace gen_amper
+	<code>
+		inc (esi);
+		if (esi < genEOF) then
+			if ( (type byte [esi]) = '&') then
+				mov (gen_andop, eax);
+				mov (andop_tc, ebx);
+				inc (esi);
+			else
+				mov (gen_amper, eax);
+			endif;
+		else
+			mov (gen_eof, eax);
+		endif;
+	
+	</code>
+	
+	; orop
+	.replace gen_vertbar
+	<code>
+		inc (esi);
+		if ( esi < genEOF) then
+			if ( (type byte [esi]) = '|') then
+				inc (esi);
+				mov (orop_tc, ebx);
+				mov (gen_orop, eax);
+			else
+				mov (gen_vertbar, eax);
+			endif;
+		else
+			mov (gen_eof, eax);
+		endif;
+		ret();
+	
+	</code>
+	
+	; dot, dotdot
+	.replace gen_period
+	<code>
+		inc (esi);
+		if (esi < genEOF) then
+			if ( (type byte[esi]) = '.') then
+				inc (esi);
+				mov (gen_dotdot, eax);
+			else
+				mov (gen_period, eax);
+			endif;
+		else
+			mov (gen_eof, eax);
+		endif;
+		ret();
+			
+	</code>
+	
+	; handle '"' here
+	.replace gen_quote
+	<code>
+		mov (esi, edi);
+		inc (edi);
+		FindEndQuote:
+			inc (esi);
+			if (esi < genEOF) then
+	
+				mov ([esi], al); cmp (al, '"'); jne FindEndQuote;
+				if ( (type byte[esi+1]) = '"') then
+					inc (esi); jmp FindEndQuote;
+				endif;
+				inc( esi );
+				mov( gen_strconst, eax );
+	
+			else
+				
+				mov (gen_error, eax);
+				
+			endif;
+		ret();
+
+	</code>
+	
+}
+

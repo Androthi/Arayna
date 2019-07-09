@@ -1,0 +1,121 @@
+namespace ui;	// user interface
+	
+//	#macro output ( _parms_[]): __parms, __counter, __buildstr;
+//		?__parms := @elements( _parms_);
+//		?__counter := 0;
+//		?__buildstr := "str.put ( strbuf, ";
+//		#while ( __counter < __parms-1 )
+//			?__buildstr += _parms_[__counter]+ ", ";
+//			?__counter += 1;
+//		#endwhile
+//		?__buildstr += _parms_[__counter] + ");";
+//		@text (__buildstr);
+//		WriteOutput ( strbuf );
+//	#endmacro
+
+	#macro write ( _parms_[]): __parms, __counter, __buildstr;
+		?__parms := @elements( _parms_);
+		?__counter := 0;
+		?__buildstr := "str.put ( strbuf, ";
+		#while ( __counter < __parms-1 )
+			?__buildstr += _parms_[__counter]+ ", ";
+			?__counter += 1;
+		#endwhile
+		?__buildstr += _parms_[__counter] + ");";
+		@text (__buildstr);
+		WriteMain ( strbuf );
+		//dbg.put( strbuf );
+	#endmacro
+
+	#macro addlist ( _hlist_, _obj_, _name_);
+		// add _name_ to list box, with item as _obj_
+			ListView_Add ( _hlist_, _obj_ , _name_);
+	#endmacro
+	
+	#macro clearlist( _parm_ );
+		// clear list box
+		ListView_Clear( _parm_ );
+	#endmacro
+end ui;
+
+//#macro funcstr( str, start, len ):chrIndex, chrLen, chrVal;
+//	?chrIndex := start;
+//	?chrVal := 0;
+//	?chrLen := len;
+//	#while( chrLen > 0 )
+//
+//		?chrVal := chrVal + 
+//			uns8( char( @substr( str, chrIndex, 1 ))) << ((chrLen-1) * 8 );
+//		?chrLen := chrLen - 1;
+//		?chrIndex := chrIndex + 1;
+//
+//	#endwhile
+//	chrVal
+//
+//#endmacro;
+
+// HLA20 code, originally
+// rwstr( str, start, len )
+//
+//	This macro generates an unsX value from the string "str" 
+//  It treats the first character as the L.O. byte
+// and following characters in the string as successive H.O. bytes
+// of the UNS8, UNS16, or UNS32 value.
+
+#macro regStr ( str ): chrLen, chrVal, chrIndex;
+	?chrVal := 0;
+	?chrIndex := 0;
+	?chrLen := @length (str);
+	
+	#if (chrLen > 4)
+		#error ("regStr : string length must be less than 5 characters")
+	#endif
+	
+	#while ( chrIndex < chrLen)
+		
+		?chrVal := chrVal + 
+			uns8( char( @substr( str, chrIndex, 1 ))) << (  ((chrLen-chrIndex)-1) * 8 );
+		?chrIndex := chrIndex + 1;
+		
+	#endwhile
+	chrVal
+	
+#endmacro
+
+#macro showerror ( _parms_[]): __parms, __counter, __buildstr;
+	?__parms := @elements( _parms_);
+	?__counter := 0;
+	?__buildstr := "str.put ( strbuf, ";
+	#while ( __counter < __parms-1 )
+		?__buildstr += _parms_[__counter]+ ", ";
+		?__counter += 1;
+	#endwhile
+	?__buildstr += _parms_[__counter] + ");";
+	@text (__buildstr);
+	WriteError ( strbuf );
+	dbg.put(strbuf);
+#endmacro;
+
+#macro tbt ( src, dst );
+	returns (
+	{
+		mov (src, eax);
+		bt ( eax, dst );
+	}, "@c" )
+#endmacro
+
+#macro writecombat ( _parms_[]): __parms, __counter, __buildstr;
+	?__parms := @elements( _parms_);
+	?__counter := 0;
+	?__buildstr := "str.put ( strbuf, ";
+	#while ( __counter < __parms-1 )
+		?__buildstr += _parms_[__counter]+ ", ";
+		?__counter += 1;
+	#endwhile
+	?__buildstr += _parms_[__counter] + ");";
+	@text (__buildstr);
+	push (edx);
+	w.SendMessage (combatwnd, w.EM_REPLACESEL, false, strbuf );
+	pop (edx);
+#endmacro;
+

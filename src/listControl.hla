@@ -1,0 +1,182 @@
+unit listControlUnit;
+	
+	#include ("src/arayna.hhf")
+	?@nodisplay := true;
+	
+	readonly
+		
+		arayna_fileListVMT	:VMT (arayna_fileList);
+		arayna_listClassVMT	:VMT (arayna_listClass);
+		
+		//tListVMT		:dword; @external;
+		//tBaseListVMT:dword; @external;
+
+
+procedure arayna_fileList.create; @noframe;
+begin create;
+	push (eax);
+	if ( esi = NULL ) then
+		mov ( mem.zalloc ( @size(arayna_fileList)), esi);
+	else
+		mem2.fillMem ([esi], @size (arayna_fileList), 0);
+	endif;
+
+	(type tList[esi]).create();	// call subclass
+
+	mov (&arayna_fileList._VMT_, this._pVMT_ );
+	pop (eax);
+	ret();
+end create;
+
+method arayna_fileList.destroy; @noframe;
+begin destroy;
+USE (EBX, EAX);
+	mov (this.head, ebx);
+	USE (ESI, EDI);
+		while (ebx) do
+			str.free (filenodeebx.filename);
+			mov (filenodeebx.buffer, esi);
+			bufesi.destroy();
+			mov ( filenodeebx.next, ebx);
+		endwhile;
+	ENDUSE;
+	super.destroy();
+	//call( tListVMT[ @offset( tList.destroy ) ] );
+ENDUSE;
+RET();
+end destroy;
+
+method arayna_fileList.newNode; @noframe;
+begin newNode;
+	mem.zalloc (@size (arayna_fileNode));
+	mov (this.nodeID, (type arayna_fileNode[eax]).nodeID);
+	ret();
+end newNode;
+
+method arayna_fileList.findFile (fname:string);
+begin findFile;
+	USE (EBX);
+		mov (this.head, ebx);
+		while (ebx) do
+			breakif (str.ieq (fname, filenodeebx.filename));
+			mov (filenodeebx.next, ebx);
+		endwhile;
+		mov (ebx, eax);
+	ENDUSE;
+end findFile;
+
+procedure arayna_listClass.create; @noframe;
+begin create;
+	push (eax);
+	if ( esi = NULL ) then
+		mov ( mem.zalloc ( @size(arayna_listClass)), esi);
+	else
+		mem2.fillMem ([esi], @size (arayna_listClass), 0);
+	endif;
+
+	(type tBaseList[esi]).create();	// call subclass
+
+	mov (&arayna_listClass._VMT_, this._pVMT_ );
+	pop (eax);
+	ret();
+end create;
+
+method arayna_listClass.destroy; @noframe;
+begin destroy;
+USE (EBX, EAX);
+	mov (this.head, ebx);
+	USE (ESI, EDI);
+		while (ebx) do
+			
+			push (listnodeebx.next);
+			mov (listnodeebx.obj, eax);
+			baseeax.destroy();
+			pop (ebx);
+		endwhile;
+	ENDUSE;
+	super.destroy();
+	//call( tBaseListVMT[ @offset( tBaseList.destroy ) ] );
+	
+	// just in case!?
+	mov( 0, this.head );
+	mov( 0, this.tail );
+	mov( 0, this.count );
+	
+ENDUSE;
+RET();
+end destroy;
+
+method arayna_listClass.empty; @noframe;
+	// clears the node memory, but keep object memory intact...
+	// use this only if "objects" in list have been moved elsewhere
+begin empty;
+
+USE (EBX);
+	mov (this.head, ebx);
+	while (ebx) do
+		mov( ebx, eax );
+		mov( listnodeebx.next, ebx );
+		mem.free( eax );
+	endwhile;
+	mov( 0, this.count );
+	mov( 0, this.head );
+	mov( 0, this.tail );
+ENDUSE;
+ret();
+end empty;
+
+method arayna_listClass.newNode; @noframe;
+begin newNode;
+	mem.zalloc (@size (arayna_listNode));
+	mov (this.nodeID, listnodeeax.nodeID);
+	ret();
+end newNode;
+
+method arayna_listClass.findObject (var obj:dword);
+begin findObject;
+USE (ESI, EBX);
+	//dbg.put ("looking for :", obj);
+	mov (this.head, ebx);
+	while (ebx) do
+		mov (listnodeebx.obj, esi);
+		breakif (esi = obj);
+		mov (listnodeebx.next, ebx);
+	endwhile;
+	mov (ebx, eax);
+ENDUSE;
+end findObject;
+
+
+method arayna_listClass.findNodeID (id:uns32);
+begin findNodeID;
+USE (EBX);
+	//dbg.put( "findNodeID");
+	mov (this.head, ebx);  
+	while (ebx) do
+		//dbg.put("head = ", ebx );
+		mov (listnodeebx.obj, esi);
+		mov ( baseesi.id, eax);		
+		breakif (eax = id);
+		mov (listnodeebx.next, ebx);
+	endwhile;
+	mov (ebx, eax);
+ENDUSE;
+//dbg.put( "/findNodeID");
+end findNodeID;
+
+method arayna_listClass.appendObject (var obj:dword);
+begin appendObject;
+USE (ECX);
+	this.newNode();
+	mov (obj, ecx);
+	
+	//dbg.put( "Object appending :", ecx );
+	mov (ecx, listnodeeax.obj);
+	push (eax);
+	this.append ([eax]);
+	pop (eax);
+ENDUSE;
+end appendObject;
+
+
+end listControlUnit;

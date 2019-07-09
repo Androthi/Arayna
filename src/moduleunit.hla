@@ -1,0 +1,5366 @@
+unit moduleunit;
+
+	
+#include ("src/arayna.hhf")
+
+?@nodisplay := true;
+
+type
+	create_t	:enum { create_object,
+						create_container };
+
+
+const
+	is_game	:= 0;
+	is_room	:= 1;
+	is_obj	:= 2;
+	
+	
+storage
+
+	align(4);
+	objectList		:arayna_listClass;
+	roomList			:arayna_listClass;
+	topicList		:arayna_listClass;
+	commandList		:arayna_listClass;
+	roomBuffer		:tBuffer;
+	loopgenLex			:dword;
+	lasttoken		:dword;
+	buffer			:tBuffer;
+	align(4);
+
+static
+	holder			:str.strvar (256);	
+
+procedure testArea (area:uns32); @returns ("@nc");
+	// see if area is defined
+	// return area object in EAX, error code in @c
+begin testArea;
+USE (ESI, EDI);
+	if ( objectList.findNodeID (area)) then
+		mov (listnodeeax.obj, eax);
+		if (testnz (rtti_area, baseeax.rtti)) then
+			clc();	// eax is good area object
+		else
+			showerror ("Object id:", area, " is not an area");
+		endif;
+	else
+		showerror ("Object id:", area, " is not defined");
+	endif;
+ENDUSE;
+end testArea;
+
+procedure testRoom (room:uns32); @returns ("@nc");
+	// tests to see if room is valid
+	// returns room object in EAX, error code in @c
+begin testRoom;
+USE (ESI, EDI, EBX);	
+	//dbg.put ("testRoom");
+	mov( roomBuffer.length, eax );
+	shr( 2, eax );
+	if( room > eax ) then
+
+		showerror ("Room id:", room, " is out of range");
+
+	else
+		mov( roomBuffer.data, ebx );
+		mov (room, eax);
+		mov ([ebx+eax*4], eax);
+		if( eax ) then
+			if (testnz (rtti_room, baseeax.rtti)) then
+				clc();
+			else
+				showerror ("Room id:", room, " is not a room object");
+			endif;
+		else
+			
+			showerror( "Room id:", room, " is not defined");
+		endif;
+	endif;
+ENDUSE;
+	//dbg.put ("/testRoom");
+end testRoom;
+
+procedure testObject (object:uns32); @returns ("@nc");
+	// test to see if object is in object list
+	// returns object pointer in eax.  error code in @c
+begin testObject;
+USE (ESI, EDI);
+	if (objectList.findNodeID (object)) then
+		mov (listnodeeax.obj, eax);
+		clc();
+	else
+		showerror ("Object id:", object, " not defined");
+	endif;
+ENDUSE;
+end testObject;
+
+
+procedure testContainer (area:uns32; room:uns32; container:uns32); @returns ("@nc");
+	// tests to see if container is valid in area, room
+	// returns container object in EAX, error code in @c
+begin testContainer;
+USE (ESI, EDI, EBX);
+	//testRoom (area, room);	jc done;
+	mov (roomeax.contains, esi);
+	if ( listesi.findNodeID (container)) then
+		mov (listnodeeax.obj, eax);
+		if (testnz (rtti_container, baseeax.rtti)) then
+			clc();
+		else
+			showerror("object id:", container, " is not a container");
+		endif;
+	else
+		showerror ("container id:", container, " not found in area:room ", area, ':', room);
+	endif;
+	done:
+ENDUSE;
+end testContainer;
+
+
+procedure getAction ( var attr:attr_t);
+	/*
+		checks action table for valid object
+		also checks for '.' and retreives attribute
+		
+		RETURNS
+			FLAGS
+				@c			error
+				@nc		success
+				
+			var attr
+				.tc		
+							var_tc
+				.id		object
+							integer
+				.atype	type_int
+							attribute
+							
+				
+				
+	*/
+
+begin getAction;
+	
+	//dbg.enters ("getAction");
+	USE (EBX, ECX);
+	
+
+	// setup initial attr
+	mov( attr, ebx );
+	mov( 0, attrebx.function );
+	mov( var_tc, attrebx.tc );
+	
+	
+	checkAction (esi);
+	mov( attr, ebx );	
+	switch (eax);
+	case (act_player)
+
+		mov( game.pc, eax );
+		mov( eax, attrebx.id );
+		mov( type_object, attrebx.atype );
+		clc();
+	
+	case (act_fromroom)
+
+		//dbg.put ("act_fromroom, area = ", game.fromarea);
+		mov( game.fromroom, ecx );
+		if( ecx ) then
+
+				// dereference room ID and get pointer
+				mov( roomBuffer.data, eax );
+				mov( [eax + ecx*4], ecx ); 
+				mov( ecx, attrebx.id );
+				
+		else
+			
+			mov( game.null_room, eax );
+			mov( eax, attrebx.id );
+				
+		endif;
+		
+		mov( type_object, attrebx.atype );
+		clc();
+
+	case( act_room )
+		//dbg.put("act_room");
+		// @room requires a pointer to de-reference a room object
+		getDot( esi );			jc done;
+		getUnsigned( esi );		jc done;
+		mov( attr, ebx );
+		
+		// find room ID in roomBuffer
+		mov( roomBuffer.data, ecx );
+		if( eax <= ( type dword [ecx]) ) then
+			mov( [ecx+ eax*4], ecx );
+			if( ecx ) then
+				//dbg.put("got object :", ecx );
+				mov( ecx, attrebx.id );
+				mov( type_object, attrebx.atype );
+				clc();
+				
+			else
+				
+				jmp roomiderr;
+				
+			endif;
+			
+		else
+			
+			roomiderr: showerror( "Room ID is out of range");
+			
+		endif;
+		
+	case (act_lastaction, act_lastverb)
+
+		move( game.lastaction, attrebx.id );
+		mov( type_int, attrebx.atype );
+		clc();
+
+	case (act_lastobject )
+		
+		if (game.lastobject <> 0 ) then
+		
+			move (game.lastobject, attrebx.id);
+			mov( type_object, attrebx.atype );
+
+		else
+		
+			testObject( 0 );
+			mov( eax, attrebx.id );
+			mov( type_object, attrebx.atype );
+		endif;
+		clc();
+	
+	case( act_this )
+		
+		mov( game.thisobject, eax );
+		if( ! eax ) then
+			showerror( "@this used outside of object event" );
+		else
+			move( eax, attrebx.id );
+			mov( type_object, attrebx.atype );
+			clc();
+		endif;
+	
+	case (act_thisroom)
+
+		mov (game.curroom, eax);
+		if (eax) then
+
+			mov (eax, attrebx.id);
+			mov( type_object, attrebx.atype );
+			clc();
+
+		else
+
+			showerror ("Have not entered any room yet.  Use this after first .teleport");
+
+		endif;
+
+	case (act_area, act_group)
+
+		mov( game.curroom, eax );
+		if( eax ) then
+			mov( roomeax.group, eax );
+			if( eax ) then
+	
+				USE( ESI, EDI );
+				if( objectList.findNodeID( eax ) ) then
+					mov( listnodeeax.obj, eax );
+					if( baseeax.rtti = rtti_area ) then
+	
+						mov( eax, attrebx.id );
+						mov( type_object, attrebx.atype );
+						clc();
+	
+					else
+	
+						showerror( "object not an area" );
+	
+					endif;
+	
+				else
+	
+					showerror( "Area not defined" );
+	
+				endif;
+				ENDUSE;
+
+			else
+				mov( 0, attrebx.id );
+				mov( type_int, attrebx.atype );
+				showerror( "Current area is NULL" );
+				
+			endif; 
+
+		else
+
+			showerror ("Area without room");
+
+		endif;
+
+	case( act_moves )
+
+		mov( game.moves, eax );
+		mov( eax, attrebx.id );
+		mov( type_int, attrebx.atype );
+		clc();
+	
+	case( act_arayna )
+	
+		move( game.araynaObj, attrebx.id );
+		mov( type_object, attrebx.atype );
+		clc();
+	
+	case( act_counter )
+	
+		mov( internal_counter, eax );
+		mov( eax, attrebx.id );
+		mov( type_int, attrebx.atype );
+		clc();
+	
+	case( act_added )
+		
+		mov( game.added, eax );
+		mov( eax, attrebx.id );
+		if( eax ) then
+			mov( type_object, attrebx.atype );
+		else
+			mov( type_int, attrebx.atype );
+		endif;
+		clc();
+		
+	case( act_removed )
+		
+		mov( game.removed, eax );
+		mov( eax, attrebx.id );
+		if( eax ) then
+			mov( type_object, attrebx.atype );
+		else
+			mov( type_int, attrebx.atype );
+		endif;
+		clc();
+		
+	case( act_nl )
+	
+		mov( 0, attrebx.id );
+		mov( const_tc, attrebx.tc );
+		mov( type_newline, attrebx.atype );
+		clc();
+		
+	default
+		
+		if (eax = 0) then
+		
+			error:
+			showerror ("Unknown internal constant/object");
+		
+		else
+		
+			mov( eax, attrebx.id );
+			mov( type_int, attrebx.atype );
+			clc();
+			
+		endif;
+
+	endswitch;
+	
+	jc done;
+	
+	// if we have a type_object here, check for '.' dereference it
+	// if found and place the value in atype, maybe we want an internal
+	// action or function
+	if( attrebx.atype = type_object && (type byte[esi]) = '.') then
+		
+		add( 1, esi );
+		//dbg.put("checking function" );
+		checkFunction( esi );
+		if( ebx = function_tc ) then
+			
+			//dbg.put("got function = ", eax );
+			// eax = func_xxx id
+			mov( attr, ebx );
+			//mov( function_tc, attrebx.tc );
+			mov( eax, attrebx.function );
+			mov( type_function, attrebx.atype );
+			clc();
+			
+			
+		else
+			genExtract();
+			if( checkAttribute( genID) ) then
+
+				mov( attr, ebx );
+				mov( eax, attrebx.function );
+				mov( type_internal, attrebx.atype );
+				clc();
+				
+			else
+				
+				showerror( "unknown object field" );
+
+			endif;
+			
+		endif;
+
+	else
+		
+		clc();
+		
+	endif;
+	
+	done:
+	ENDUSE;
+	//dbg.exits("getAction");
+
+end getAction;
+
+procedure parseIf (src:dword in esi); @external;
+
+procedure executeSection (section_id:string);
+begin executeSection;
+USE (ESI, EDI, EBX, ECX, EDX);
+	//dbg.put("executeSection :", section_id );
+	symbol_tbl.lookup ( section_id );
+	if (eax) then
+		mov( (type tableNode[eax]).Value, ecx );
+		if( attrecx.tc = section_tc ) then
+		
+			// preserve current section (if any)
+			push (gamesect);
+			mov (filenode, esi);
+			push (bufesi.cursor);
+			push (esi);
+			push (genLine);
+			
+			mov ( (type tableNode[eax]).id, gamesect);
+			mov ( (type tableNode[eax]).Value, eax);
+			mov (eax, ebx);
+			mov( attrebx.filenode, eax );
+			mov (eax, filenode);
+			mov ( (type arayna_fileNode[eax]).buffer, esi);
+			mov (attrebx.line, eax);
+			mov (eax, genLine);
+			mov (attrebx.cursor, eax);
+			bufesi.moveTo( eax );
+			mov( attrebx.cursor, esi );
+			
+			
+			runSection(esi);
+			
+			
+			// restore previous section
+			pop (genLine);
+			pop (esi);
+			mov (esi, filenode);
+			pop (bufesi.cursor);
+			pop (gamesect);
+			
+			mov( 0, game.thisobject );
+		else
+			
+			showerror( "ERROR: ", section_id, " is not a valid section" );
+		
+		endif;
+	
+		
+	else
+		showerror ("ERROR: .section ", section_id, " not defined");
+	endif;
+ENDUSE;
+//dbg.put ("/executeSection");
+end executeSection;
+
+
+procedure peek (src:dword in esi); @noframe;
+begin peek;
+	push (genLine);
+	push (esi);
+	genLex(esi);
+	pop (esi);
+	pop (genLine);
+	ret();
+end peek;
+
+
+procedure doTeleport (room:uns32);
+	var
+		room_ptr	:dword;
+	
+begin doTeleport;
+	
+	USE (ESI);
+
+		testRoom (room);	jc _x;
+		mov (eax, room_ptr);
+		mov( eax, ebx );
+		//dbg.put ("teleporting");
+		if (ebx <> game.curroom) then
+			mov (game.curroom, eax);
+			if (eax) then
+				mov (baseeax.id, eax);
+				mov (eax, game.fromroom);
+			endif;
+			mov (ebx, game.curroom);
+		endif;
+		EnterCurrentRoom();
+		or (1, eax);	
+		_x:
+	ENDUSE;
+	//dbg.put ("/doteleport");
+end doTeleport;
+
+procedure parseNew (src:dword in esi; var attr:attr_t);
+	var
+		stackno	:dword;
+		obj		:dword;
+		
+begin parseNew;
+	
+	//dbg.put ("parseNew");
+	mov (0, stackno);
+	getLeftParen (esi);	jc done;
+	getUnsigned (esi);	jc done;
+	testObject (eax);		jc done;
+	if (testnz (rtti_area, baseeax.rtti)) then
+		showerror ("May not create area objects in this way");
+	else
+		mov (eax, obj);
+		peek (esi);
+		if (eax = gen_lbracket) then
+			genLex (esi);
+			getUnsigned (esi);	jc done;
+			mov (eax, stackno);
+			getRightBracket (esi);	jc done;
+		endif;
+		
+		mov (obj, eax);
+		if (stackno) then
+			if (testz (rtti_stackable, baseeax.rtti))then
+				showerror ("Object is not stackable");
+				jmp done;
+			endif;
+		endif;
+		USE (EBX, ESI);
+			baseeax.clone();
+			
+			mov (attr, ebx);
+			mov (eax, attrebx.id);
+			mov (type_object, attrebx.atype);
+			mov( var_tc, attrebx.tc );
+			
+			if (stackno > 0) then
+				mov (stackno, ecx);
+				if ( stackedeax.maxstack = 0 || (type uns32 ecx) <= stackedeax.maxstack) then
+					mov (ecx, stackedeax.stack);
+					or (1, eax);
+				else
+					showerror ("Amount exceeds maximum stacking limit of object");
+				endif;
+			else
+				or (1, eax);
+			endif;
+		ENDUSE;
+		
+		if (eax = gen_error) then
+			jmp done;
+		endif;
+		getRightParen (esi);		jc done;
+		clc();
+	endif;
+	done:
+	//dbg.put ("/parseNew");
+end parseNew;
+
+procedure parseSpawn (src:dword in esi);
+var
+	object		:dword;
+	stack			:dword;
+	dest			:pointer to arayna_containerClass;
+	attr			:attr_t;
+	
+begin parseSpawn;
+	//dbg.put ("parseSpawn");
+	xor (eax, eax);
+	mov (eax, stack);
+	mov (eax, object);
+	
+	getLeftParen(esi);	jc done;
+	getUnsigned(esi);		jc done;
+	
+	// search for the object to make sure it's valid
+	testObject (eax);		jc done;
+	mov (eax, object);
+	
+	if (testnz (rtti_area, baseeax.rtti)) then
+		showerror ("Area objects may not be spawned");
+		jmp done;
+	endif; 
+	
+	genLex (esi);
+	if (eax = gen_lparen) then
+		genLex (esi);
+		if (eax = gen_number) then
+			move (genNumber, stack);
+		else
+			showerror ("Error in object stacking in .spawn");
+			jmp done;
+		endif;
+		
+		getRightParen(esi);	jc done;
+		genLex (esi);
+	endif;
+	
+	if (eax <> gen_comma) then
+		showerror ("Expecting a comma in .spawn");
+		jmp done;
+	endif;
+	
+	// get object pointer
+	expr( attr ); jc arg2error; 
+	if( attr.atype != type_object ) then
+		arg2error:
+		showerror ("2nd argument of .spawn must be an object pointer" );
+		jmp done;
+	endif;
+	
+	mov( attr.id, eax );
+	mov( eax, dest );
+	
+	getRightParen (esi);		jc done;
+	
+	USE( ESI );
+	
+		push (esi);
+		mov (object, eax);
+		objeax.clone();
+		if (stack) then
+			move (stack, itemeax.stack);
+		endif;
+		mov (eax, object);
+		dest.addObject (object);
+
+		mov( game.curroom, esi );
+		roomesi.inventory();
+	ENDUSE;
+	or( 1, eax );	
+
+	done:	
+	//dbg.put ("/parseSpawn :", eax);
+end parseSpawn;
+
+procedure switchAction( state:dword; var dest:dword );
+begin switchAction;
+	
+	mov( state, eax );
+	mov( dest, ecx );
+	switch( eax );
+	case( act_lock )
+		
+		or (is_locked, (type dword [ecx]) );
+		or (is_closed, (type dword [ecx]) );
+	
+	case( act_close )
+	
+		or (is_closed, (type dword [ecx]) );
+	
+	case( act_open )
+	
+		and( ! is_closed, (type dword [ecx])  );
+	
+	case ( act_break )
+	
+		or (is_broken, (type dword [ecx]) );
+		
+	case( act_fix )
+		
+		and( ! is_broken, (type dword [ecx])  );
+	
+	case( act_on )
+	
+		or ( is_on, (type dword [ecx]) );
+	
+	case( act_off )
+	
+		and (! is_on, (type dword [ecx]) );
+			
+	case( act_special )
+		
+		or( is_special, (type dword [ecx]));
+		
+	case( act_unlock )
+		
+		and( ! is_locked, (type dword[ecx]) );
+		
+	case( act_shop )
+	
+		or( is_shop, (type dword[ecx]) );
+		
+	default
+		showerror ("Unsupported constant in .state");
+		jmp done;
+	endswitch;
+	
+	or( 1, eax );
+	done:
+end switchAction;
+
+
+procedure parseState;
+	var
+		thisstate	:dword;
+
+begin parseState;
+	//dbg.put ("parseState");
+	exitif (! getLeftParen(esi)) parseState;
+	mov (0, thisstate);
+	
+	forever
+		
+		genLex (esi);
+		breakif (eax = gen_rparen);
+		if( eax = gen_eof ) then
+			showerror( "unexpected eof" );
+			break;
+		endif;
+
+		//dbg.put ("STATE  : ", ebx, "    ", eax);
+		if (eax = gen_atsign) then
+			checkAction (esi);   //dbg.put("action = ", eax );
+			switchAction( eax, thisstate );
+			breakif( eax = gen_error );
+		endif;
+		
+	endfor;
+		
+	if (eax <> gen_error) then
+		mov (thisstate, eax);
+		clc();
+	endif;
+	//dbg.put ("/parseState :", eax);
+end parseState;
+
+procedure parseVerbs( src:dword in esi );
+	// grabs attributes and returns in EAX
+
+	procedure act_to_comp; @noframe;
+	begin act_to_comp;
+		// OR lword
+		//dbg.put ("act_to_comp");
+		mov (&id_attrib, ebx);
+		mov ([ecx], eax);
+		or (eax, [ebx]);
+		mov ([ecx+4], eax);
+		or (eax, [ebx+4]);
+		mov ([ecx+8], eax);
+		or (eax, [ebx+8]);
+		mov ([ecx+12], eax);
+		or (eax, [ebx+12]);
+		//dbg.put ("/act_to_comp");
+		ret();
+	end act_to_comp;
+
+	
+begin parseVerbs;
+	//dbg.put ("parseVerbs");
+	
+	getLeftParen( esi );	jc done;
+	zeroLword (&id_attrib);
+	
+	forever
+		genLex (esi);
+		
+		if (eax = gen_atsign) then
+			checkAction (esi); //dbg.put ("action = ", eax );
+			if (eax) then
+				switch (eax);
+				case (act_general)
+					mov (&comp_general, ecx);
+					act_to_comp();
+	
+				case (act_fooditem)
+					mov (&comp_fooditem, ecx);
+					act_to_comp();
+	
+				case (act_wearable)
+					mov (&comp_wearable, ecx);
+					act_to_comp();
+				
+				case (act_drinkitem)
+					mov (&comp_drinkitem, ecx);
+					act_to_comp();
+				
+				case( act_wieldable )
+					mov( &comp_wieldable, ecx );
+					act_to_comp();
+				
+				default
+					mov (&id_attrib, ebx);
+					bts ( eax, [ebx]);
+	
+				endswitch;
+			else
+				jmp error;
+			endif;
+			clc();
+		else
+			
+			//? need to expand here to accomodate
+			// custom verbs
+			
+			error:
+			showerror ("Syntax Error in .verbs, expecting comma delimited constants" nl);
+			break;
+		endif;
+		
+		genLex( esi );
+		if( eax = gen_rparen ) then
+			
+			clc();
+			break;
+		
+		elseif( eax != gen_comma ) then
+			jmp error;
+		endif;
+
+	endfor;
+	done:
+	//dbg.put ("/parseVerbs");
+end parseVerbs;
+
+procedure parseWrite;
+	// parse a .write command.
+	var
+		attr		:attr_t;
+		save_tkn	:save_t;
+
+begin parseWrite;
+	//dbg.enters( "parseWrite" );
+	
+	getLeftParen(esi);	jc done;
+	forever
+		saveToken (save_tkn);
+		//dbg.put( "write :", (type char[esi]) );
+		genLex (esi);
+		switch (eax);
+				
+		case ( gen_id, gen_atsign, gen_strconst, gen_number, gen_real, gen_period)
+			next:
+			restoreToken (save_tkn);
+			expr (attr);
+			jc iderror;
+			
+			//dbg.put("attr.id = ", attr.id );
+			//dbg.put("attr.tc = ", attr.tc );
+			//dbg.put("attr.typ= ", attr.atype );
+		
+			if( attr.tc = file_tc ) then
+				//dbg.put("writing file");
+				push( esi );
+				mov( attr.id, esi );
+				(type tBuffer[esi])._toString( 0 );
+				mov( eax, ecx );
+				ui.write( (type string ecx ) );
+				str.free( ecx );
+				pop( esi );
+				 
+				clc();
+				jmp id_done;
+			endif;
+			
+			mov (attr.atype, eax);
+			switch (eax);
+			
+			case (type_int)
+				t_int:
+				conv.i32ToStr ( attr.id, 0, ' ', genID);
+				ui.write ( genID );
+
+			case (type_real)
+				t_real:
+				conv.r32ToStr (attr.real, 30, 2, ' ', genID);
+				str.trim (genID);
+				ui.write (genID);
+
+			case (type_string)
+				ui.write (attr.s);
+			
+			case (type_strconst)
+				loadString( attr, buffer_str );
+				ui.write( buffer_str );
+			
+			case (type_object)
+
+				ui.write (attr.id);
+				
+			case( type_newline )
+			
+				ui.write( nl );
+				
+			default
+	
+				iderror:
+				showerror ("Unknown label in .write");
+				jmp id_done;
+				
+			endswitch;
+
+			
+			clc();
+			freeAttr (attr);
+			id_done:
+					
+		case (gen_comma)
+			continue;
+		
+		case( gen_lparen )
+			jmp next;
+		
+		case (gen_rparen)
+			break;
+		
+		default
+			writeerr:
+			showerror ("syntax error in .write :", eax);
+			break;
+		endswitch;
+		
+	endfor;
+
+	done:
+//	dbg.exits( "parseWrite");
+end parseWrite;
+
+procedure readArray( id:string; var attr:attr_t; isVariant:boolean );
+
+
+	var
+		thisattr	:pointer to attr_t;
+
+	procedure getNode( s:string );
+	begin getNode;
+	
+		USE( ESI, EDI );
+		if(! symbol_tbl.lookup ( s ) ) then
+			showerror( "Array out of bounds" );
+			
+		else
+			mov( (type tableNode[eax]).Value, eax );
+			clc();
+		endif;
+		ENDUSE;
+	
+	end getNode;
+	
+
+begin readArray;
+	dbg.enters("readArray");
+	
+	USE( EBX, EDX, ECX );	
+	
+	mov( attr, ebx );
+	mov( 1, edi );
+	mov( 1, edx );
+		
+	while( edi <= attrebx.dim1 ) do
+		
+		//dbg.separator;
+		
+		while( edx <= attrebx.dim0 ) do
+				
+			str.put( buffer_str, id, '#', (type uns32 edx), '#', (type uns32 edi ) );
+			getNode( buffer_str);
+			mov( eax, thisattr );
+			
+			USE( EDI, EDX, EBX );
+			expr( [eax] );
+			ENDUSE;
+			
+			mov( thisattr, eax );
+						//dbg.put("reading :", buffer_str, "	= ", attreax.id );
+			if( isVariant ) then
+				mov( var_tc, attreax.tc );
+			else
+				mov( const_tc, attreax.tc );
+			endif;
+			
+			USE( EDI, EDX, EBX );
+			genLex( esi );
+			ENDUSE;
+			//dbg.put("lexed :", eax );
+			if( eax = gen_rbrace ) then
+				clc();
+				jmp done;
+
+			elseif( eax != gen_comma ) then
+				showerror( "syntax error in array declaration" );
+				jmp done; 
+			endif;
+			
+			inc( edx );
+
+		endwhile;
+		mov( 1, edx );
+		inc( edi );
+	welse
+		bounds:
+		showerror("array out of bounds" );
+		
+	endwhile; 
+	done:
+	
+	ENDUSE;
+	dbg.exits("readArray");
+end readArray;
+
+
+procedure makeArray( id:string; var attr:attr_t; isVariant:boolean );
+
+	// creaty symbols for array passed in attr with
+	// label id
+	
+	procedure getNode( s:string; isVariant:boolean );
+	begin getNode;
+		
+		push( edi );
+		symbol_tbl.getNode ( s );
+		mov( eax, ecx );
+		mem.zalloc( @size( attr_t ) );
+		mov( eax, (type tableNode[ecx]).Value );
+		if( isVariant) then
+			mov( var_tc, attreax.tc );
+		else
+			mov( const_tc, attreax.tc );
+		endif;
+		mov( type_int, attreax.atype );
+		pop( edi );
+		
+	end getNode;
+
+
+begin makeArray;
+	USE( EBX, ESI, EDX, ECX );
+	//dbg.enters("makeArray");	
+	mov( attr, ebx );
+		
+	for( mov( 1, edi ); edi <= attrebx.dim0; inc( edi ) ) do
+		
+		for( mov( 1, edx ); edx <= attrebx.dim1; inc( edx ) )do
+			
+			str.put( buffer_str, id, '#', (type uns32 edi), '#', (type uns32 edx ) );
+			//dbg.put("making :", buffer_str );
+			getNode( buffer_str, isVariant );
+			
+		endfor;
+		
+	endfor;
+	
+	//dbg.exits("makeArray");
+	ENDUSE;
+end makeArray;
+
+
+procedure parseVariant( prev:string );
+
+	/*
+		-constants appear in .var {}
+		-on entry, 1st byte after opening brace '{'
+		-parse until closing brace '}'
+		-nested variants are records
+		-records are stored in the variants list as
+		 <record_id>#<field_id>[#<field_id>]
+		-no soft-limit to record nesting
+		-records are read in recursively
+		
+		.var {
+			a_var = 0		;setup a constant with value 0
+			b_var {
+				; b_var is a record, anything appearing {} is a part of that record
+				d0 = 14
+				d1 = "d0"
+			}
+		}
+	*/
+
+
+	var
+		attr		:attr_t;
+		_node		:dword;
+		curID		:string;
+		dim0		:uns32;
+		dim1		:uns32;
+		ary_attr	:pointer to attr_t;
+
+begin parseVariant;
+	//dbg.put ("parseVariant");
+	forever
+		genLex (esi);
+		breakif( eax = gen_rbrace );
+		
+		if (eax != gen_id) then
+			showerror (".global sections may only contain ID's");
+			break;
+		endif;
+
+		if( prev != 0 ) then
+			
+			// this is a record field
+			// record fields are stored in the form of
+			// record#field
+			str.put( strbuf, prev, '#', genID );
+			//str.put( strbuf, holder, '#', genID );
+			//dbg.put( "record field id= ", strbuf );
+			
+			push( esi );
+			symbol_tbl.getNode( strbuf );
+			jmp _donode;
+			
+		else
+ 			
+ 			str.cpy (genID, holder);
+			push( esi );
+			symbol_tbl.getNode ( holder );
+			_donode:
+			mov( eax, _node );
+			if ( (type tableNode[eax]).Value <> 0 ) then
+				showerror ("Duplicate symbol in .var section :", holder );
+			endif;
+			pop( esi );
+			breakif( @c );
+		
+		endif;
+		
+		
+		genLex( esi );
+		if( eax = gen_equal ) then
+			expr (attr);
+			if (@nc) then
+				
+				mem.zalloc ( @size (attr_t) );
+				// add to global symbol table
+				mov( _node, ebx );	
+				mov (eax, (type tableNode [ebx]).Value);				
+				mov (eax, ebx);
+				move (attr.id, attrebx.id );
+				move (attr.atype, attrebx.atype);
+				mov (var_tc, attrebx.tc);
+
+				//dbg.put ("got var:", genID, " ", attrebx.id, "  : ", attrebx.atype);
+			
+			else
+				showerror ("Error during expression evaluation");
+				break;
+			endif;
+			
+		elseif( eax = gen_lbrace ) then
+			
+			mem.zalloc ( @size (attr_t) );
+			mov( record_tc, attreax.tc );
+			mov( type_record, attreax.atype );
+			mov( _node, ebx );	
+			mov( eax, (type tableNode [ebx]).Value);
+			//parseVariant( eax );
+			//breakif( eax = gen_error );
+
+			if( prev != 0) then
+				str.put( strbuf, prev, '#', genID );
+				str.a_cpy( strbuf );
+			else
+				str.a_cpy( genID );
+			endif;
+			mov( eax, curID );
+			parseVariant( curID );
+			str.free( curID );
+			breakif( eax = gen_error );
+			
+		elseif( eax = gen_lbracket ) then
+			
+			// array
+			dbg.put("array");
+			
+			if( prev != 0 ) then
+				str.put( strbuf, prev, '#', genID );
+			else
+				str.cpy( genID, strbuf );
+			endif;
+				
+			mov( 0, dim0 );
+			mov( 1, dim1 );	// default, all arrays have depth of 1
+			
+			getUnsigned( esi );
+			breakif( @c );
+			
+			mov( eax, dim0 );
+			
+			genLex( esi );
+			cmp( eax, gen_rbracket );
+			je next;
+			if( eax != gen_comma ) then
+				showerror( "syntax error in array declaration" );
+				break;
+			endif;
+			getUnsigned( esi );
+			breakif( @c );
+			
+			mov( eax, dim1 );
+			
+			getRightBracket( esi );
+			breakif( @c );
+			
+			
+			next:
+			mem.zalloc( @size( attr_t ) );
+			mov( array_tc, attreax.tc );
+			mov( type_array, attreax.atype );
+			move( dim0, attreax.dim0 );
+			move( dim1, attreax.dim1 );
+			
+			mov( _node, ebx );	
+			mov( eax, (type tableNode [ebx]).Value);
+			mov( eax, ebx );
+			makeArray( strbuf, [ebx], true );
+			mov( ebx, ary_attr );
+			
+			peek( esi );
+			if( eax = gen_lbrace ) then
+				genLex( esi );
+				mov( ary_attr, ebx );
+				readArray( strbuf, [ebx], true );
+				breakif( @c );
+			endif;
+			
+		else
+			showerror ("Error during expression evaluation");
+			break;			
+		endif;
+	endfor;
+	//dbg.put("/parseVariant");
+end parseVariant;
+
+
+procedure parseConst( prev:string );
+	
+	/*
+		-constants appear in .const {}
+		-on entry, 1st byte after opening brace '{'
+		-parse until closing brace '}'
+		-nested constants are records
+		-records are stored in the variants list as
+		 <record_id>#<field_id>[#<field_id>]
+		-no soft-limit to record nesting
+		-records are read in recursively
+		-a dot appearing directly after a constant declaration
+		uses an internal counter to provide a value
+		@counter = n may appear in this section to set a value for the internal counter
+		
+		.const {
+			a_const = 0		;setup a constant with value 0
+			b_const.			;setup a constant and use internal counter to provide value
+			c_const.			;like above, but internal counter has incremented +1
+			@counter = 10	;sets the internal counter to 10
+			d_const {
+				; dconst is a record, anything appearing {} is a part of that record
+				d0 = 14
+				d1 = "d0"
+				d2 {
+					; d2 is a nested record, anything appearing {} is a part of that record
+					d20 = 0
+				}
+			}
+			ary_const[n,n]	; setup an array of constants
+		}
+	*/
+	
+	
+	var
+		attr		:attr_t;
+		position	:dword;
+		_node		:dword;
+		curID		:string;
+		dim0		:uns32;
+		dim1		:uns32;
+		ary_attr	:pointer to attr_t;
+
+begin parseConst;
+	//dbg.put ("parseConst");
+	
+	forever
+		genLex (esi); //dbg.put("lex :", eax );
+		breakif (eax = gen_rbrace);
+		
+		if( eax = gen_atsign ) then
+			// see if this is a legal command for the const section
+			checkAction( esi );
+			//dbg.put ("counter token = ", eax );
+			if (eax != act_counter) then
+				showerror( "illegal command in .const section");
+				break;
+			endif;
+			breakif( ! getEqual( esi ));
+			breakif( ! getNumber( esi));
+			mov( eax, internal_counter );
+			continue;
+			
+		elseif( eax <> gen_id ) then
+			genExtract();
+		endif;
+		
+		// it's a valid ID, check for duplicates
+		
+		if( prev != 0 ) then
+			
+			// this is a record field
+			// record fields are stored in the form of
+			// record#field#field...
+			str.put( strbuf, prev, '#', genID );
+			//str.put( strbuf, holder, '#', genID );
+			//dbg.put( "record field id= ", strbuf );
+			
+			push( esi );
+			symbol_tbl.getNode( strbuf );
+			jmp _donode;
+ 	
+		
+		else
+		
+			// new label
+			str.cpy (genID, holder);
+			//dbg.put ("const = ", holder);
+			push( esi );
+			symbol_tbl.getNode ( holder );
+			_donode:
+			mov( eax, _node );
+			if ( (type tableNode[eax]).Value <> 0 ) then
+				showerror ("Duplicate symbol in .const section :", holder);
+			endif;
+			pop( esi );
+			breakif( @c );
+		endif;
+		
+		genLex( esi );
+		if( eax = gen_equal ) then
+		
+			mov (esi, position);
+			expr (attr);
+			if (@nc) then
+				
+				mem.zalloc ( @size (attr_t) );
+				// add to global symbol table
+				mov( _node, ebx );	
+				mov (eax, (type tableNode [ebx]).Value);				
+				mov (eax, ebx);
+				if (attr.atype = type_string) then
+					mov (position, attrebx.id);
+					mov (type_strconst, attrebx.atype);
+					freeAttr ( attr);
+				else
+					mov (attr.id, attrebx.id);
+					mov (attr.atype, attrebx.atype);
+				endif;
+				mov (const_tc, attrebx.tc);
+
+				//dbg.put ("got const:", attrebx.id, "  : ", attrebx.atype);
+			
+			else
+				showerror ("Error during expression evaluation");
+				break;
+			endif;
+			
+		elseif( eax = gen_period ) then
+			
+			// auto constant, increment internal_counter
+			
+			mem.zalloc ( @size (attr_t) );
+			mov( _node, ebx );
+			mov (eax, (type tableNode [ebx]).Value);
+			mov (eax, ebx);
+			mov( internal_counter, eax );
+			mov( eax, attrebx.id );
+			mov( type_int, attrebx.atype );
+			mov( const_tc, attrebx.tc );
+			inc( internal_counter );
+		
+		elseif( eax = gen_lbrace ) then
+			
+			// record
+			
+			mem.zalloc ( @size (attr_t) );
+			mov( record_tc, attreax.tc );
+			mov( type_record, attreax.atype );
+			mov( _node, ebx );	
+			mov( eax, (type tableNode [ebx]).Value);
+			
+			if( prev != 0) then
+				str.put( strbuf, prev, '#', genID );
+				str.a_cpy( strbuf );
+			else
+				str.a_cpy( genID );
+			endif;
+			mov( eax, curID );
+			parseConst( curID );
+			str.free( curID );
+			breakif( eax = gen_error );
+
+		elseif( eax = gen_lbracket ) then
+			
+			// array
+			dbg.put("array");
+			
+			if( prev != 0 ) then
+				str.put( strbuf, prev, '#', genID );
+			else
+				str.cpy( genID, strbuf );
+			endif;
+				
+			mov( 0, dim0 );
+			mov( 1, dim1 );	// default, all arrays have depth of 1
+			
+			getUnsigned( esi );
+			breakif( @c );
+			
+			mov( eax, dim0 );
+			
+			genLex( esi );
+			cmp( eax, gen_rbracket );
+			je next;
+			if( eax != gen_comma ) then
+				showerror( "syntax error in array declaration" );
+				break;
+			endif;
+			getUnsigned( esi );
+			breakif( @c );
+			
+			mov( eax, dim1 );
+			
+			getRightBracket( esi );
+			breakif( @c );
+			
+			next:
+			mem.zalloc( @size( attr_t ) );
+			mov( array_tc, attreax.tc );
+			mov( type_array, attreax.atype );
+			move( dim0, attreax.dim0 );
+			move( dim1, attreax.dim1 );
+			
+			mov( _node, ebx );	
+			mov( eax, (type tableNode [ebx]).Value);
+			mov( eax, ebx );
+			makeArray( strbuf, [ebx], false );
+			mov( ebx, ary_attr );
+			
+			peek( esi );
+			if( eax = gen_lbrace ) then
+				genLex( esi );
+				mov( ary_attr, ebx );
+				readArray( strbuf, [ebx], false );
+				breakif( @c );
+			endif;
+			//dbg.dumpmem( esi, 10 );
+		else
+
+			showerror ("syntax error in .const section");
+			break;
+		endif;
+	endfor;
+	//dbg.put ("/parseConst");
+end parseConst;
+
+
+procedure parseSpawnObjects (src:dword in esi; dst:dword);
+	
+	var
+		object_ptr	:pointer to arayna_baseClass;
+		save_tkn	:save_t;
+
+begin parseSpawnObjects;
+	//dbg.put("parseSpawnObjects");
+	forever
+		getNumber (esi);	jc done;
+		
+		// find object in list
+		testObject (genNumber);	jc done;
+		mov (eax, object_ptr);
+		if (testnz (rtti_area, baseeax.rtti)) then
+			showerror ("Area objects may not be spawned");
+			break;
+		endif;
+		
+		USE (ESI);
+			object_ptr.clone();
+			mov (eax, object_ptr);	// object_ptr now points to cloned object
+		ENDUSE;
+			
+		saveToken( save_tkn);
+		genLex (esi);
+		// see if we have stacked object spawn
+		if (eax = gen_lbracket ) then
+
+			getNumber (esi);		jc done;
+			
+			mov (object_ptr, eax);
+			if (testnz (rtti_stackable, baseeax.rtti)) then
+					mov (genNumber, ecx);
+					if ( (type arayna_itemClass[eax]).maxstack = 0 || (type uns32 ecx) <= (type arayna_itemClass[eax]).maxstack) then
+					mov (ecx, (type arayna_itemClass[eax]).stack);
+				else
+					showerror ("Amount exceeds maximum stacking limit of object in .spawn");
+					break;
+				endif;
+			else
+				showerror ("Spawned object is not stackable, in .spawn");
+				break;
+			endif;
+			
+			breakif (! getRightBracket(esi));
+			push(esi);
+			mov (dst, esi);
+			containeresi.addObject (object_ptr);
+			pop (esi);
+			
+		else
+			//dbg.put("adding object");
+			mov (dst, esi);
+			containeresi.addObject (object_ptr);
+			restoreToken(save_tkn);
+		endif;
+
+		// at this point, we want to scan again
+		// for either a comma or closing bracket or open bracket for containers
+		_again: //dbg.put("again");
+		genLex (esi);
+			
+		if (eax = gen_comma) then
+			continue;
+		
+		elseif (eax = gen_lparen) then
+			// this is a container of some sort (container within container, eg: chest inside a room
+			// recursive spawnobjects.
+			mov (object_ptr, eax);
+			if (testnz (rtti_container, baseeax.rtti)) then
+				parseSpawnObjects (esi, object_ptr);		jc done;
+				jmp _again;
+			else
+				showerror ("Only objects defined as .container may contain other objects");
+				break;
+			endif;
+			
+		elseif (eax = gen_rparen) then
+			clc();
+			break;
+			
+		else
+			showerror ("Syntax error in .spawn");
+			break;
+		endif;
+	endfor;
+	done:
+	//dbg.put ("/parseSpawnObjects");	
+end parseSpawnObjects;
+
+procedure parseEvent( src:dword; id:uns32 ); @returns("@nc");
+
+	var
+		event	:dword;
+		
+
+begin parseEvent;
+	
+	if( id = 0 && src ) then
+		showerror(".id must be declared before .event" );
+		jmp error;
+	endif;
+	
+	mov( esi, event );
+	again:
+	genLex( esi );
+	if( eax = gen_equal ) then
+		// '=' is optional here
+		mov( esi, event );
+		jmp again;
+		
+	elseif( eax = gen_lbrace ) then
+		
+		// unnamed embedded section
+		//dbg.put("lbrace");
+		mov( src, eax );
+		if( eax = is_game || eax = is_obj ) then
+			str.put( strbuf, "OBJ@");
+		else
+			str.put( strbuf, "ROOM@");
+		endif;
+		
+		str.put2( strbuf, id );
+		
+		mov( event, esi );
+		parseSection( strbuf );
+		jmp done;
+		
+	elseif (eax <> gen_id) then
+	
+		showerror ("Expecting a section identifier for .event");
+		jmp done;
+	
+	endif;
+	
+	// see if this is named embedded section
+	//dbg.put("esi prior :", esi );
+	peek( esi );
+	if( eax = gen_lbrace ) then
+		// embedded section
+		mov( event, esi );
+		parseSection( 0 );
+		jc done;
+	endif;
+	//dbg.put("esi after :", esi );
+	clc();
+	done:
+	mov( event, eax );
+	error:
+end parseEvent;
+
+
+procedure parseRoom ( src:dword in esi );
+	//parse directives in .room section
+	//on entry, ESI points right after the
+	//.room declaration, on exit it will point beyond
+	//the closing brace
+	
+	var
+		
+		curroom		:pointer to arayna_roomClass;
+		id				:uns32;
+		event			:dword;
+		area			:uns32;
+		state			:dword;
+
+		attr			:attr_t;
+		genLexStart	:dword;		
+		exits			:dword [10];
+		
+		
+begin parseRoom;
+	//dbg.enters ("parseRoom");
+	getLeftBrace( esi );	jc done;
+	
+	xor( eax, eax );
+	mov( eax, id );
+	mov( eax, event );
+	mov( eax, area );
+	mov( eax, state );
+	lea( eax, exits );
+	mem2.fillMem ([eax], @elements(exits)*4, 0 );
+	
+	push( esi );
+	arayna_roomClass.create();
+	mov(esi, curroom);
+	pop( esi );
+	
+	forever
+		
+		genLex( esi );
+		switch( eax );
+		
+		case( gen_period )
+			
+			checkCommand( esi );
+			switch( eax );
+
+			case( tkn_id )
+				breakif (! getEqual(esi ) );
+				getObjectID( esi );	jc done;
+				mov( eax, id );
+				
+				// check room buffer for availability of slot
+				// expand buffer if necessary
+				mov( roomBuffer.data, edx );
+				mov( [edx], eax ); // dword at index 0 = max rooms
+				
+				if( id > eax ) then
+					mov( roomBuffer.length, eax );
+					sub( id, eax );
+					shl( 2, eax );
+					add( 1024, eax );
+					USE( ESI, EDI )
+						xor( cl, cl );
+						roomBuffer.insertSet( cl, eax );
+						mov( roomBuffer.length, eax );
+						shr( 2, eax );
+						mov( roomBuffer.data, ecx );
+						mov( eax, [ecx] ); // update max_rooms at index 0
+					ENDUSE;
+				endif;
+				
+				mov( id, eax );
+				if ( (type dword [edx+eax*4]) != 0 ) then
+					showerror( "A room with id :", id, " has already been defined");
+					break;
+				endif;
+					
+			case( tkn_label )
+				
+				breakif (! getEqual(esi ) );
+				expr( attr );		jc donefor;
+				
+				push( esi );
+				mov( curroom, esi );
+				roomesi.setLabel( attr );
+				pop( esi );
+				jc donefor;
+				
+				
+			case( tkn_area )
+				breakif( ! getEqual( esi ) );
+				breakif( ! getUnsigned( esi ));
+				mov( eax, area );
+				
+			case (tkn_state)
+				call parseState;		jc done;
+				mov (eax, state);
+
+			case( tkn_event )
+				
+				parseEvent( is_room, id );  breakif( @c );
+				mov( eax, event );
+			
+			case( tkn_desc )
+			
+				breakif (! getEqual(esi ) );
+				expr( attr );		jc donefor;
+				push( esi );
+				mov( curroom, esi );
+				
+				roomesi.setDesc( attr );
+				pop( esi );
+				jc donefor;
+				
+
+			case( tkn_exits )
+				
+				breakif( ! getLeftParen( esi ));
+				
+				mov (10, ecx);
+				lea (edi, exits);
+				while (ecx) do
+					
+					USE (ECX, EDI);
+						genLex (esi);
+						mov (edi, genLexStart);
+					ENDUSE;
+					switch (eax);
+						
+					case (gen_number)
+						number:
+						mov (genNumber, eax);
+						stosd();
+						if (ecx > 1) then
+							breakif (! getComma(esi));
+						endif;
+						
+					case (gen_dotdot)
+						// user wants to set rest of values to zero
+						xor (eax, eax);
+						while (ecx) do
+							stosd();
+							dec (ecx);
+						endwhile;
+						or( 1, eax );
+						break;
+					
+					case (gen_id)
+						test_id:
+						//dbg.put ("room table id: ", genID );
+						if (tableLookup (genID)) then
+							cmp (eax, gen_number);
+							je number;
+							showerror ("unknown item in .exits :", genID);
+						endif;
+						
+					default
+						push (edi);
+						mov (genLexStart, edi);
+						genExtract();
+						pop (edi);
+						jmp test_id; 
+					endswitch;
+					or( 1, eax );
+					dec (ecx);
+				endwhile;
+				
+				breakif( eax = gen_error );
+				//breakif (! getRightBracket(esi));
+				breakif( ! getRightParen( esi ) );
+
+			case (tkn_spawn) 
+				//dbg.put ("spawn");
+				if (id = 0 ) then
+					showerror( "Must define room .id before using .spawn" );
+					break;
+				endif;
+				breakif( ! getLeftParen( esi ));
+				parseSpawnObjects (esi, curroom);
+				breakif (@c);
+
+			
+			default
+				showerror ("Unknown Item in .room")
+				break;
+			
+			endswitch;
+		
+		case( gen_rbrace, gen_eof )
+			clc();
+			break;
+			
+		default
+			showerror( "Unknown directive in .room")
+			break;
+		
+		endswitch;	
+		
+	endfor;
+	donefor:
+	
+	if( @c ) then
+		push( eax );
+		push( esi );
+		mov( curroom, esi );
+		roomesi.destroy();
+		pop( esi );
+		pop( eax );
+		stc();
+		jmp done;
+	endif;
+	
+	if( id > 0 ) then
+		// we have a room
+		USE( ESI );
+			mov( curroom, esi );
+			push( area );
+			pop( roomesi.group );
+			mov( roomBuffer.data, edx );
+			mov( id, eax );
+			mov( esi, [edx+ eax*4] );
+			mov( id, roomesi.id );
+			mov( state, eax );
+			mov( eax, roomesi.state );
+			mov( event, roomesi.event );
+
+			mov( esi, ebx );			
+			lea( esi, exits );
+			
+			// order is important
+			lodsd();				// get the room addr into eax
+			mov ( eax, roomebx.north);
+			lodsd();
+			mov ( eax, roomebx.south);
+			lodsd();
+			mov ( eax, roomebx.east);
+			lodsd();
+			mov ( eax, roomebx.west);
+			lodsd();
+			mov ( eax, roomebx.northEast);
+			lodsd();
+			mov ( eax, roomebx.northWest);
+			lodsd();
+			mov ( eax, roomebx.southEast);
+			lodsd();
+			mov ( eax, roomebx.southWest);
+			lodsd();
+			mov ( eax, roomebx.up);
+			lodsd();
+			mov ( eax, roomebx.down);
+			
+			//mov( curroom, eax );
+			roomList.appendObject( [ebx] );
+		ENDUSE;
+	endif;
+	or( 1, eax );
+
+	done:
+	//dbg.exits("parseRoom");
+end parseRoom;
+
+
+procedure parseAgent;
+@alignstack;
+	var
+
+		id			:dword;
+		_label	:attr_t;
+		desc		:attr_t;
+		event		:dword;
+		group		:uns32;
+		align( 4 );
+		
+begin parseAgent;
+	
+	//dbg.enters( "parseAgent");
+	
+	zeroLword (&id_attrib);
+	xor( eax, eax );
+	mov( eax, id );
+	mov( eax, group );
+	zeroAttr( _label );
+	zeroAttr( desc );
+	mov( eax, event );
+	
+	getLeftBrace( esi );	jc done;
+	
+	forever
+		
+		getSectionDirective( esi );	jc done;
+		switch (eax);
+		case ( gen_error )
+			// not really error, end of section
+			or( 1, eax );
+			break;
+			
+		case ( tkn_id )
+			
+			getEqual( esi );	jc done;
+			getObjectID( esi );	jc done;
+			move( genNumber, id );
+		
+		case( tkn_label );
+			
+			getEqual( esi );	jc done;
+			expr( _label );	jc done;
+
+		case (tkn_desc)
+			
+			getEqual( esi );	jc done;
+			expr( desc );		jc done;
+
+		case( tkn_verbs)
+			parseVerbs( esi );	jc done;
+			
+		case (tkn_event)
+
+			parseEvent( is_obj, id );  jc done;
+			mov( eax, event );
+			
+		case( tkn_group )
+		
+			getEqual( esi );	jc done;
+			getObjectID( esi );	jc done;
+			mov( eax, group );
+		
+		default
+			showerror ("Unknown command directive used in .agent");
+			jmp done;
+
+		endswitch;
+		
+	endfor;
+	
+	cmp( eax, gen_error );
+	je done;
+
+	
+	USE (ESI);
+		if (objectList.findNodeID (id)) then
+			showerror ("Object with ID:", id, " is already defined");
+		else
+			arayna_agentClass.create();
+			move( id, agentesi.id );
+			if( desc.id > 0 ) then
+				agentesi.setDesc( desc );	jc objerr;
+			endif;
+			if( _label.id > 0 ) then
+				agentesi.setLabel( _label );	jc objerr;
+			endif;
+			agentesi.setVerbs ( &id_attrib);
+			move( event, agentesi.event );
+			move( group, agentesi.group );
+			objectList.appendObject ( [esi] );
+		endif;
+	
+	clc();
+	jmp doneobj;
+	
+	objerr:  //dbg.put("agent error");
+	agentesi.destroy();
+	stc();
+	mov( gen_error, eax );
+	
+	doneobj:
+	ENDUSE;	
+	done:
+	//dbg.exits( "parseAgent");
+end parseAgent;
+
+
+procedure parsePlayer;
+@alignstack;
+	var
+		_label		:attr_t;
+		align(4);
+
+begin parsePlayer;
+	//dbg.put ("parsePlayer");
+	
+	zeroAttr( _label );
+	getLeftBrace( esi );	jc done;
+	
+	forever
+		genLex (esi);
+		switch (eax);
+		
+		case (gen_rbrace, gen_eof, gen_error)
+			break;
+		
+		case (gen_period)
+			getCommand (esi);		jc done;
+			switch (eax);
+			
+			case( tkn_label )
+				getEqual ( esi );	jc done;
+				expr( _label );	jc done;
+				push( esi );
+				mov( game.pc, esi );
+				pcesi.setLabel( _label );
+				pop( esi );
+				
+			//case (tkn_event)
+				
+				//parseEvent( is_obj, id );  breakif( @c );
+				//mov( game.pc, ecx );
+				//mov( eax, pceax.event );
+			
+			case( tkn_spawn )
+				getLeftParen( esi );	jc done;
+				mov( game.pc, eax );
+				parseSpawnObjects( esi, eax );  jc done;
+				
+			endswitch;
+				
+		default
+			showerror ("Unknown directive for .player section");
+			jmp done;
+		endswitch;
+	endfor;
+
+//	
+//	// create the player object
+//	if (! iscreate) then
+//
+//	USE (ESI);
+//		
+//		mov (arayna_playerClass.create(), game.pc );
+//		mov (esi, pcp);
+//		if( _label.id > 0 ) then
+//			pcesi.setLabel( _label );
+//		endif;
+//		mov (esi, ebx);	
+//		mov (thisevent, pcebx.event);
+//		
+//	ENDUSE;
+//	endif;
+	
+	done:
+	//dbg.put ("/parsePlayer");
+	
+end parsePlayer;
+
+
+procedure parseObject (create: create_t);	@alignstack;
+	var
+		
+		thisitem		:pointer to arayna_baseClass;
+		id				:uns32;
+		_label		:attr_t;
+		desc			:attr_t;
+		event			:dword;
+		state			:dword;
+		group			:uns32;
+		charges		:uns32;
+		maxcharges	:uns32;
+		maxstack		:uns32;
+		key			:uns32;
+		is_stackable:boolean;
+
+begin parseObject;
+	
+	//dbg.enters( "parseObject" );
+	
+
+	
+	exitif ( ! getLeftBrace (esi)) parseObject;
+	
+	xor (eax, eax);
+	mov( eax, id );
+	mov( eax, group );
+	zeroAttr( _label );
+	zeroAttr( desc );
+	//mov( eax, _label );
+	//mov( eax, desc );
+	mov (eax, charges);
+	mov (eax, maxcharges);
+	mov( eax, maxstack );
+	mov (eax, event);
+	mov (eax, state);
+	mov (eax, key);
+	mov( al, is_stackable );
+	
+	zeroLword (&id_attrib);
+
+	forever
+		genLex (esi);
+		switch (eax);
+		
+		case (gen_period)
+			getCommand (esi);
+			breakif (@c);
+			switch (eax);
+			
+			case( tkn_id )
+				getEqual( esi );		jc done;
+				getObjectID( esi );	jc done;
+				
+				move( genNumber, id );
+				USE (ESI);
+				if (objectList.findNodeID (id )) then
+					showerror ("An object with id: ", id, " has already been defined");
+				else
+					or( 1, eax );
+				endif;
+				ENDUSE;
+				breakif( eax = gen_error );
+				
+			case( tkn_label )
+				getEqual( esi );		jc done;
+				expr( _label );		jc done;
+		
+			case (tkn_desc)
+				getEqual( esi );		jc done;
+				expr( desc );			jc done;
+
+			case( tkn_group )
+			
+				getEqual( esi );	jc done;
+				getObjectID( esi );	jc done;
+				mov( eax, group );
+
+			case (tkn_charges)
+				
+				breakif (! getLeftParen(esi));
+				breakif (! getNumber(esi));
+				mov (eax, charges);
+				
+				breakif (! getComma(esi));
+				breakif (! getNumber(esi));
+				mov (eax, maxcharges);
+				breakif (! getRightParen(esi));
+				
+			case( tkn_verbs )
+				parseVerbs( esi );
+				breakif( eax = gen_error);
+			
+			case (tkn_stack)
+				
+				getEqual( esi );		jc done;
+				genLex (esi);
+				if (eax = gen_atsign) then
+					checkAction (esi);
+					if (eax = act_unlimited) then
+						mov (0, maxstack);
+					else
+						jmp _stackerr;
+					endif;
+				
+				elseif (eax = gen_number) then
+					move (genNumber, maxstack);
+					
+				else
+					_stackerr:
+					showerror ("Expecting an integer value or @unlimited for .stack");
+					break;
+				endif;
+				mov( true, is_stackable );
+				
+			case (tkn_event)
+				parseEvent( is_obj, id );  breakif( @c );
+				mov( eax, event );
+			
+			case (tkn_state)
+				call parseState;		jc done;
+				mov (eax, state);
+
+			case (tkn_key, tkn_uses)
+				getEqual( esi );		jc done;				
+				breakif (! getUnsigned(esi));
+				mov (eax, key);					
+			
+			default
+				jmp error;
+			endswitch;
+	
+		case (gen_rbrace)
+			or (1, eax);		// make sure no error
+			break;
+		
+		case (gen_eof, gen_error)
+			clc();
+			break;
+		
+		default
+			error:
+			showerror ("Syntax Error in .object");
+			break;
+	
+		endswitch;
+		
+	endfor;
+	
+	cmp( eax, gen_error );	je done;
+	
+
+	// create the object
+	// based on kind of object	
+	
+	USE (ESI);
+		
+		//dbg.put ("searching objectList : ", itemnum);
+		if (! objectList.findNodeID (id)) then
+			
+			if (create = create_container) then
+				mov (arayna_containerClass.create(), thisitem);
+				
+			else
+				
+				mov (arayna_itemClass.create(), thisitem);
+				//move (duration, itemesi.duration);
+				move (charges, itemesi.charges);
+				move (maxcharges, itemesi.maxcharge);
+				mov (0, itemesi.stack);
+				mov (maxstack, itemesi.maxstack);
+					
+			endif;
+			
+			mov (thisitem, esi);
+			objectList.appendObject ([esi]);
+			mov( thisitem, esi );
+			itemesi.setVerbs ( &id_attrib);
+			move( id, itemesi.id );
+			
+			if( _label.id > 0 ) then
+				itemesi.setLabel( _label );
+			endif;
+			if( desc.id > 0 ) then
+				itemesi.setDesc( desc );
+			endif;
+			
+			move ( event, itemesi.event);
+			move( group, itemesi.group );
+			move (key, itemesi.key);
+			move (state, itemesi.state);	
+			if( is_stackable ) then
+				or( rtti_stackable, itemesi.rtti );
+			endif;
+			or (1, eax);			
+		else
+			showerror ("Object is already defined");
+		endif;
+
+	ENDUSE;
+	done:
+	//dbg.exits( "parseObject" );
+end parseObject;
+
+procedure parseCommand;
+
+	var
+		event			:dword;
+		activate		:dword;
+		deactivate	:dword;
+		id				:uns32;
+		lbl			:attr_t;
+		desc			:attr_t;
+
+begin parseCommand;
+	
+	dbg.put("parse command");
+	getLeftBrace( esi );	jc done;
+	
+	zeroAttr( lbl );
+	zeroAttr( desc );
+	mov( 0, event );
+	mov( 0, id );
+	mov( 0, activate );
+	mov( 0, deactivate );
+	
+	forever
+		genLex (esi);
+
+		switch (eax);
+		
+		case( gen_period )
+			
+			getCommand (esi);		jc error;
+			switch (eax);
+			
+			case( tkn_id )
+				getEqual( esi );		jc error;
+				getObjectID( esi );	jc error;
+				move( genNumber, id );
+
+			case( tkn_label )
+				getEqual( esi );		jc error;
+				expr( lbl );			jc error;
+		
+			case (tkn_desc)
+				
+				// allowed but ignored for now
+				// maybe there will be use for it in future
+				
+				getEqual( esi );		jc error;
+				expr( desc );			jc error;
+
+			case (tkn_event)
+				parseEvent( is_obj, id );  jc error;
+				mov( eax, event );
+				
+			case( tkn_addcommands )
+				getLeftParen( esi );	jc error;
+				mov( esi, activate );
+				findNext( gen_rparen, gen_lparen );
+				breakif( eax = gen_error );
+			
+			case( tkn_removecommands )
+				getLeftParen( esi ); jc error;
+				mov( esi, deactivate );
+				findNext( gen_rparen, gen_lparen );
+				breakif( eax = gen_error );
+				
+			default
+				jmp error;
+			endswitch;
+			
+			
+		case (gen_rbrace)
+			or (1, eax);		// make sure no error
+			clc();
+			break;
+		
+		case (gen_eof, gen_error)
+			or( 1, eax );
+			clc();
+			break;
+		
+		default
+			error:
+			showerror ("Syntax Error in .command");
+			break;
+	
+		endswitch;
+		
+	endfor;
+	
+	cmp( eax, gen_error );
+	je done;
+	
+	push( esi );
+	
+	if( ! objectList.findNodeID (id) ) then
+		arayna_topicClass.create();
+		move( id, topicesi.id );
+		if( lbl.id > 0 ) then
+			topicesi.setLabel( lbl );	jc objerr;
+		endif;
+		if( desc.id > 0 ) then
+			topicesi.setDesc( desc );	jc objerr;
+		endif;
+		move( event, topicesi.event );
+		move( activate, topicesi.activate );
+		move( deactivate, topicesi.deactivate );
+		
+		and( ! rtti_topic, topicesi.rtti );
+		or( rtti_command, topicesi.rtti );
+		
+		objectList.appendObject ([esi]);
+	else
+		showerror ("An ojbect with id :", id, " has already been defined");
+	endif;
+	
+	clc();
+	jmp doneobj;
+	
+	objerr:
+	mov( gen_error, eax );
+	stc();
+	
+	doneobj:
+	pop( esi );
+	
+	done:
+end parseCommand;
+
+
+procedure parseDialog;
+
+	var
+		event			:dword;
+		activate		:dword;
+		deactivate	:dword;
+		id				:uns32;
+		lbl			:attr_t;
+		desc			:attr_t;
+		
+begin parseDialog;
+	
+	getLeftBrace( esi );	jc done;
+	
+	zeroAttr( lbl );
+	zeroAttr( desc );
+	mov( 0, event );
+	mov( 0, id );
+	mov( 0, activate );
+	mov( 0, deactivate );
+	
+	forever
+		genLex (esi);
+		switch (eax);
+		
+		case( gen_period )
+			
+			getCommand (esi);		jc error;
+			switch (eax);
+			
+			case( tkn_id )
+				getEqual( esi );		jc error;
+				getObjectID( esi );	jc error;
+				move( genNumber, id );
+
+			case( tkn_label )
+				getEqual( esi );		jc error;
+				expr( lbl );			jc error;
+				loadString( lbl, buffer_str );
+				//dbg.put("got label :", buffer_str );
+				
+			case (tkn_desc)
+				getEqual( esi );		jc error;
+				expr( desc );			jc error;
+
+			case (tkn_event)
+				parseEvent( is_obj, id );  jc error;
+				mov( eax, event );
+				
+			case( tkn_activate )
+				getLeftParen( esi );	jc error;
+				mov( esi, activate );
+				findNext( gen_rparen, gen_lparen );
+				breakif( eax = gen_error );
+				
+			case( tkn_deactivate )
+				getLeftParen( esi ); jc error;
+				mov( esi, deactivate );
+				findNext( gen_rparen, gen_lparen );
+				breakif( eax = gen_error );
+				
+			default
+				jmp error;
+			endswitch;
+			
+			
+		case (gen_rbrace)
+			or (1, eax);		// make sure no error
+			clc();
+			break;
+		
+		case (gen_eof, gen_error)
+			or( 1, eax );
+			clc();
+			break;
+		
+		default
+			error:
+			showerror ("Syntax Error in .dialog");
+			break;
+	
+		endswitch;
+		
+	endfor;
+	
+	cmp( eax, gen_error );
+	je done;
+	
+	push( esi );
+	
+	if( ! objectList.findNodeID (id) ) then
+		arayna_topicClass.create();
+		move( id, topicesi.id );
+		if( lbl.id > 0 ) then
+			topicesi.setLabel( lbl );	jc objerr;
+		endif;
+		if( desc.id > 0 ) then
+			topicesi.setDesc( desc );	jc objerr;
+		endif;
+		move( event, topicesi.event );
+		move( activate, topicesi.activate );
+		move( deactivate, topicesi.deactivate );		
+		
+		objectList.appendObject ([esi]);
+		//dbg.put("added rtti_topic");
+	else
+		showerror ("An ojbect with id :", id, " has already been defined");
+	endif;
+	
+	clc();
+	jmp doneobj;
+	
+	objerr:
+	mov( gen_error, eax );
+	stc();
+	
+	doneobj:
+	pop( esi );
+	
+	done:
+end parseDialog;
+
+procedure parseArea;
+
+	var
+		thisarea	:pointer to arayna_areaClass;
+		id			:uns32;
+		event		:dword;
+		attr		:attr_t;
+
+begin parseArea;
+	//dbg.enters("parseArea");
+	
+	getLeftBrace( esi ); jc done;
+	
+	xor( eax, eax );
+	mov( eax, id );
+	mov( eax, event );
+	zeroAttr( attr );
+	
+	push( esi );
+	move (arayna_areaClass.create(), thisarea);
+	pop( esi );
+	forever
+		genLex( esi );
+		switch( eax );
+		
+		case( gen_period )
+			getCommand (esi);		jc donefor;
+			switch (eax);
+			
+			case( tkn_id )
+				breakif (! getEqual(esi ) );
+				getObjectID( esi );	jc done;
+				mov( eax, id );
+				USE (ESI);
+				if (objectList.findNodeID (id)) then
+					showerror ("An ojbect with id :", id, " has already been defined");
+				endif;
+				mov( thisarea, eax );
+				move( id, areaeax.id );
+				ENDUSE;
+
+			
+			case( tkn_label )
+				//dbg.put("label");
+				breakif (! getEqual(esi ) );
+				expr( attr );	jc donefor;
+				//dbg.put("got it, setting");
+				push( esi );
+				thisarea.setLabel( attr );
+				pop( esi );
+				//dbg.put( "/label" );
+			
+			case( tkn_event )
+				//dbg.put("event");
+
+				parseEvent( is_obj, id );  breakif( @c );
+				mov( thisarea, ecx );
+				mov( eax, areaecx.event );
+
+			default
+				showerror( "Wrong directive for .area" );
+				break;
+			
+			endswitch;
+		
+		case( gen_rbrace, gen_eof )
+			or( 1, eax );
+			clc();
+			break;
+			
+		default
+			showerror( "Unknown directive in .area" );
+			break;
+			
+		endswitch;
+	endfor;
+	donefor:
+
+	If( @c ) then
+		push( esi );
+		thisarea.destroy();
+		stc();
+		jmp done;
+	endif;
+	
+	push( esi );
+	mov( thisarea, eax );
+
+	objectList.appendObject ([eax]);
+	pop( esi );
+	or( 1, eax );
+	clc();
+	
+	done:
+	//dbg.exits ("parseArea");
+end parseArea;
+
+
+procedure parseDefine;
+begin parseDefine;
+	//dbg.put ("parseDefine");
+	exitif (! getLeftBrace(esi)) parseDefine;
+	
+	forever
+		mov( esi, eax );
+		sub( BOF, eax );
+		//dbg.put("lex charpos:", (type uns32 eax ));
+		genLex (esi);
+		switch (eax);
+		
+		case (gen_period)
+			//dbg.put("getting command");
+			getCommand (esi);
+			breakif (@c);
+			switch (eax);
+			
+			case (tkn_object)
+				
+				// parse object
+				parseObject (create_object);
+				breakif (eax = gen_error);
+			
+			case (tkn_container)
+				parseObject (create_container);
+				
+			case (tkn_player)
+				call parsePlayer;
+				breakif (eax = gen_error);
+			
+			case (tkn_agent)
+				call parseAgent;
+				breakif (eax = gen_error);
+			
+			case (tkn_area)
+				
+				call parseArea;
+				breakif (eax = gen_error);
+				
+			case( tkn_room )
+				call parseRoom;
+				
+				breakif( eax = gen_error );
+			
+			case( tkn_dialog )
+				call parseDialog;
+				breakif( eax = gen_error );
+			
+			case( tkn_command )
+				call parseCommand;
+				breakif( eax = gen_error );
+				
+			default
+				showerror ("Unknown Object in .define")
+				break;
+			
+			endswitch;
+			
+		case (gen_rbrace, gen_eof)
+			or( 1, eax );
+			break;
+			
+		default
+			showerror ("Unexpected object");
+			break;
+		endswitch;
+	endfor;
+
+	//dbg.put ("/parseDefine :", eax);
+end parseDefine;
+
+
+procedure parseBegin;
+begin parseBegin;
+	//dbg.put ("parseBegin");
+	exitif ( ! getLeftBrace( esi) ) parseBegin;
+	
+//	USE( ESI );
+//	mov( game.araynaObj, eax );
+//	if( loadString( objeax.desc, buffer_str ) ) then
+//		history.insert( buffer_str, nl, nl );
+//	endif; 
+//	ENDUSE;
+
+	w.SendMessage (hwnd, ARAYNA_CLS, 0, 0);	
+	runSection (esi);
+	//dbg.put ("/parseBegin");
+end parseBegin;
+
+procedure parseFileIO( var attr:attr_t; new:boolean );
+begin parseFileIO;
+		
+	if( new ) then
+		
+		// optional ()
+		peek( esi );
+		if( eax = gen_lparen ) then
+			getLeftParen( esi );
+			getRightParen( esi );
+		endif;
+		
+		push( esi);
+		tBuffer.create();
+		
+	else
+
+		getLeftParen( esi );		jc done;
+		expr( attr );				jc done;
+		mov( attr, ecx );
+	
+		if( attrecx.atype = type_string ) then
+			str.cpy( attrecx.id, buffer_str );
+		elseif( attrecx.atype = type_strconst ) then
+			loadString( attr, buffer_str );
+		else
+			showerror( "Expecting a quoted string representing a filename");
+			jmp done;
+		endif;
+		freeAttr( attr );
+		getRightParen( esi );	jc done;
+
+		
+		if( filesys.exists( buffer_str ) ) then
+			push( esi );	
+			tBuffer.create( buffer_str );
+			
+		else
+			showerror( "file not found :", buffer_str );
+			jmp done;
+		endif;
+	endif;
+	
+	mov( attr, ecx );
+	mov( file_tc, attrecx.tc );
+	mov( esi, attrecx.buffer );
+	mov( 2, (type tBuffer[esi]).decimal );
+
+	dbg.put("opened :", buffer_str );
+	clc();
+	
+	next:
+	pop( esi );
+	
+	done:	
+end parseFileIO;
+
+proc
+	parseExistFile		:procedure( var attr:attr_t );
+	begin parseExistFile;
+		
+		getLeftParen( esi );		jc done;
+		expr( attr );				jc done;
+		
+		mov( attr, ecx );	
+		if( attrecx.atype = type_string ) then
+			str.cpy( attrecx.id, buffer_str );
+		elseif( attrecx.atype = type_strconst ) then
+			loadString( attr, buffer_str );
+		else
+			showerror( "Expecting a quoted string representing a filename");
+			jmp done;
+		endif;
+		freeAttr( attr );
+		getRightParen( esi );	jc done;
+		
+		filesys.exists( buffer_str );
+		mov( attr, ecx );
+		mov( eax, attrecx.id );
+		mov( type_int, attrecx.atype );
+		mov( 0, attrecx.function );
+		
+		clc();
+		done:
+		
+	end parseExistFile;
+
+
+procedure parseSection( secLabel:string );
+	var
+		sec			:pointer to attr_t;
+		counter		:dword;
+		curID			:string;
+
+begin parseSection;
+	//dbg.put ("parseSection");
+	
+	if( secLabel = 0 ) then
+		getID( esi );		jc done;
+	else
+		str.cpy( secLabel, genID );
+	endif;
+	
+	//dbg.put("parseSection :", genID );
+	// check for duplicate symbols in section list
+	USE (esi, ebx);
+	
+		symbol_tbl.getNode ( genID );
+		mov (eax, ebx);
+		
+		if ( (type tableNode[ebx]).Value <> 0 ) then
+
+			showerror ("Duplicate symbol :", genID );
+
+		else
+			
+			// new symbol.. allocate storage
+			mem.zalloc( @size( attr_t ) );
+			mov( eax, sec );
+			mov( section_tc, attreax.tc );
+			mov( 0, attreax.atype );
+			mov (eax, (type tableNode [ebx]).Value);
+			mov ((type tableNode[ebx]).id, gamesect);  // we may need this if there are locals
+			clc();
+		endif;
+	ENDUSE;
+	
+	jc done;
+	
+	peek( esi );
+	if( eax = gen_lparen ) then
+		// we have parameters
+		genLex( esi );
+		//bm=TODO_parameters list, process.. until gen_rparen	
+	endif;
+	
+	getLeftBrace( esi );	jc done;
+	
+	// proper start of section, record information.
+	mov( sec, eax );
+	mov( genLine, attreax.line );
+	mov( esi, attreax.cursor );
+	mov( filenode, attreax.filenode );
+	
+	mov (1, counter);
+	forever
+		
+		// see if we have local .const or .var sections
+		
+		genLex (esi); //dbg.put("section :", eax );
+		if( eax = gen_period) then
+			checkCommand( esi );
+			if( eax = tkn_const ) then
+				
+				breakif( ! getLeftBrace( esi ));
+				parseConst( gamesect );
+				breakif( @c ); 
+				
+			elseif( eax = tkn_var ) then
+				
+				breakif( ! getLeftBrace( esi ));
+				parseVariant( gamesect );
+				breakif( @c );
+				
+			endif;
+			
+			// ignore all other commands.
+			
+		elseif (eax = gen_lbrace) then
+			inc (counter);
+			
+		elseif (eax = gen_rbrace) then
+			dec (counter);
+			breakif (@z);
+			
+		elseif( eax = gen_error ) then
+			showerror( "syntax error in section" );
+			break;
+			
+		elseif( eax = gen_eof ) then
+			showerror( "unexpected EOF");
+			break;
+		endif;
+	endfor;
+	mov (0, gamesect);
+	done:
+	//dbg.put ("/parseSection");
+end parseSection;
+
+procedure CleanUp;	@noframe;
+	// free all memory associated with a module here
+
+	procedure destroy_symbol_tbl; @noframe;
+	begin destroy_symbol_tbl;
+	USE (EAX, ECX, EBX);
+		//	dbg.put("destroy symbols");
+		mov ( (type tableNode[ebx]).Value, ecx);
+		//dbg.put( "Symbol :", (type tableNode[ebx]).id );
+
+		//		dbg.put ("got value");
+		if (mem.isInHeap (ecx) ) then
+			
+			if ( attrecx.tc = var_tc && attrecx.atype = type_string) then
+				if( str.isInHeap ( attrecx.id) ) then
+					//dbg.put ("freeing string");
+					str.free ( attrecx.id);
+				endif;
+			endif;
+			//dbg.put ("freeing attr");
+			mem.free (ecx);
+		endif;
+	ENDUSE;
+		ret();
+	end destroy_symbol_tbl;
+
+begin CleanUp;
+
+//bm=cleanup
+	dbg.enters ("CleanUp");
+	dbg.put ("reset objectList");
+	//if ((type dword objectList[0]) <> 0) then
+		objectList.destroy();
+	//endif;
+	mem2.fillMem (&objectList, @size(arayna_listClass), 0);
+	
+	dbg.put("reset topicList");
+	if( (type dword topicList[0]) != 0 ) then
+		// don't destroy this since objects it
+		// contains are originals and those
+		// are destroyed above in objectlist
+		topicList.empty();
+		
+	endif;
+	mem2.fillMem( &topicList, @size(arayna_listClass), 0 );
+	
+	dbg.put("reset commandList");
+	if( (type dword commandList[0]) != 0 ) then
+		// don't destroy this since objects it
+		// contains are originals and those
+		// are destroyed above in objectlist
+		commandList.empty();
+		
+	endif;
+	mem2.fillMem( &commandList, @size(arayna_listClass), 0 );
+	
+	
+	dbg.put("reset pc");
+	mov (game.pc, eax);
+	if (eax) then
+		pceax.destroy();
+	endif;
+	
+	if( game.pcname > 0 ) then
+		str.free( game.pcname );
+	endif;
+	
+	// reset counter
+	mov( 1, internal_counter );
+
+	dbg.put("reset base objecs");
+	mov( game.araynaObj, esi );
+	objesi.destroy();
+	if( str.isInHeap( game.null_room )) then
+		mov( game.null_room, esi );
+		roomesi.destroy();
+	endif;
+	
+	//mov( game.intMove, esi );
+	//objesi.destroy();
+	//mov( game.intEvent, esi );
+	//objesi.destroy();
+	
+	// cleanup roomBuffer
+	dbg.put("reset room buffer and room list");
+	roomBuffer.destroy();
+	roomList.destroy();
+	mem2.fillMem( &roomList, @size(arayna_listClass), 0 );
+
+	dbg.put("reset symbol table");
+	if (symbol_tbl <> 0 ) then
+		//dbg.put ("destroy symbol table");
+		symbol_tbl.destroy (&destroy_symbol_tbl);
+	endif;
+	dbg.put("/");
+	xor (eax, eax);
+	mov (eax, symbol_tbl );
+
+//	dbg.put ("unmapping");
+	// dep. use fileList.destroy
+	// unmap all the files
+	dbg.put("reset file list");
+	fileList.destroy();
+	mem2.fillMem( &fileList, @size(arayna_fileList), 0 );
+	fileList.create();
+	
+	dbg.put("reset game structure");
+	xor (eax, eax);
+	mov (eax, includeSP);
+	mem2.fillMem (&game, @size(game), 0);
+	
+	dbg.exits("CleanUp");
+	ret();
+end CleanUp;
+
+
+
+procedure parse (source:dword in esi);
+
+	var
+		attr	:attr_t;
+		
+begin parse;
+	//dbg.cls;
+	dbg.put ("parse");
+	push (esi);
+	// some initial module setup
+	
+	objectList.create();
+	roomList.create();
+	topicList.create();
+	commandList.create();
+	mov (table.create($1000), symbol_tbl);
+	
+	// setup room buffer
+	// default size has room for 1023 rooms
+	roomBuffer.create();
+	mov( bufesi.vSize, eax );
+	xor( cl, cl );
+	bufesi.insertSet( cl, eax );
+	mov( bufesi.length, eax );
+	mov( eax, bufesi.length );
+	shr( 2, eax );
+	mov( bufesi.data, ecx );
+	mov( eax, [ecx] ); // index dword at 0 will contain max_rooms in buffer
+	bufesi.bof();	
+	mov (false, game.status);	// assume failure
+
+	// create a NULL room	
+	arayna_roomClass.create();
+	mov( esi, game.null_room );
+	mov( esi, game.fromroom );
+	mov( esi, game.curroom );
+	
+	arayna_objectClass.create();
+	mov( esi, game.araynaObj );
+	
+//	arayna_objectClass.create();
+//	mov( esi, game.intMove );
+//	arayna_objectClass.create();
+//	mov( esi, game.intEvent );
+	
+	
+	// create a NULL object with id 0
+	arayna_objectClass.create();
+	mov( 0, objesi.id );
+	objectList.appendObject ( [esi] );
+ 
+ 	// create an empty player object
+	arayna_playerClass.create();
+	mov( esi, game.pc );
+	 
+	pop (esi);
+	
+	// 1st check header to determine if this is in
+	// fact an arayna module
+	
+	getDirective (esi);		jc error;
+	
+	if (eax = tkn_arayna) then
+		//dbg.put("parse arayna");
+		// arayna found, begin module scan
+		//dbg.put("parse = arayna" );
+		
+		getLeftBrace( esi );	jc error;
+		
+		forever
+			genLex (esi);
+			switch (eax);
+			
+			case (gen_period)
+				getCommand (esi);
+				breakif (@c);
+				switch (eax);
+	
+				case (tkn_desc)
+					breakif (! getEqual (esi));
+					expr( attr );		breakif( @c );
+					push( esi );
+					mov( game.araynaObj, esi );
+					objesi.setDesc( attr );
+					pop( esi );
+					breakif( @c );
+					
+					
+				case (tkn_label)
+					breakif (! getEqual (esi));
+					expr( attr );		breakif( @c );
+					push( esi );
+					mov( game.araynaObj, esi );
+					objesi.setLabel( attr );
+					if( @nc ) then
+						loadString( attr, buffer_str );
+						breakif( @c );
+						//dbg.put("got str :", buffer_str );
+						SetWindowTitle( buffer_str );
+					endif;
+					pop( esi );
+					freeAttr( attr );
+					breakif( @c );
+					
+				case( tkn_event )
+	
+					parseEvent( is_game, 0 );	breakif(@c);
+					mov( game.araynaObj, ecx );
+					mov( eax, objecx.event );
+					
+				case( tkn_intmove )
+				
+					//str.put( strbuf, "intmov#section" );
+					mov( true, game.intMove );
+					parseSection( "intmov@section" );
+					
+					//breakif( ! getLeftBrace( esi ));
+					//mov( game.intMove, ecx );
+					//mov( esi, objecx.event );
+					//findNext ( gen_rbrace, gen_lbrace);
+					breakif( eax = gen_error );
+				
+				case( tkn_intevent )
+					
+					//r.put( strbuf,  );
+					mov( true, game.intEvent );
+					parseSection( "intevent@section" );
+					
+					//breakif( ! getLeftBrace( esi ));
+					//mov( game.intEvent, ecx );
+					//mov( esi, objecx.event );
+					//findNext( gen_rbrace, gen_lbrace );
+					
+					breakif( eax = gen_error );
+					
+				case( tkn_verbevent )
+				
+					//str.put( strbuf, "verbevent@section" );
+					mov( true, game.verbEvent );
+					parseSection( "verbevent@section" );
+					breakif( eax = gen_error );
+					
+				case( tkn_saveevent )
+				
+					mov( true, game.saveEvent );
+					parseSection( "saveevent@section" );
+					breakif( eax = gen_error );
+				
+				case( tkn_loadevent )
+					
+					mov( true, game.loadEvent );
+					parseSection( "loadevent@section" );
+					breakif( eax = gen_error );
+					
+				case (tkn_const)
+					breakif (! getLeftBrace (esi));
+					parseConst( 0 );
+					breakif ( eax = gen_error);
+				
+				case( tkn_var )
+					breakif (! getLeftBrace (esi));
+					parseVariant( 0 );
+					breakif (eax = gen_error);
+	
+				case (tkn_define)
+					call parseDefine;
+					breakif (eax = gen_error);
+	
+				case (tkn_section)
+					parseSection( 0 );
+					breakif (eax = gen_error);	
+			
+				case (tkn_begin)
+					//dbg.put ("begin");
+					mov (true, game.status);
+					call parseBegin;
+					breakif (eax = gen_error);
+
+				case( tkn_showcontrols )
+					
+					//dbg.put("showcontrols");
+					mov( true, showcontrols );
+					w.ShowWindow( htoolwind, w.SW_SHOWNORMAL );
+					w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+
+				case( tkn_hidecontrols )
+					
+					dbg.put("hidecontrols");
+					mov( false, showcontrols );
+					//w.SetParent( htoolwind, hwnd );
+					w.ShowWindow( htoolwind, w.SW_HIDE );
+					w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+
+				case( tkn_showcommands )
+					
+					//dbg.put("showcontrols");
+					mov( true, showcommands );
+					w.ShowWindow( hlistcmd, w.SW_SHOWNORMAL );
+					w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+
+				case( tkn_hidecommands )
+					
+					//dbg.put("showcontrols");
+					mov( false, showcommands );
+					w.ShowWindow( hlistcmd, w.SW_HIDE );
+					w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+
+				case (tkn_include)
+					
+					genLex (esi);
+					if (eax = gen_strconst ) then
+						USE (ESI);
+						dec( esi );
+						genExtract();
+						if ( fileList.findFile (genID)) then
+							showerror ("File :", genID, " already included" );
+						else
+							or (1, eax);
+						endif;
+						ENDUSE;
+						breakif (eax = gen_error);
+						pushIncStk();
+						mapFile (genID);
+						mov (BOF, esi);
+	
+					else
+						showerror ("Syntax .include ""filename""");
+						break;
+					endif;
+				
+				case( tkn_debug )
+				
+					w.EnableMenuItem( main_menu, IDM_DEBUG, w.MF_ENABLED );
+					w.DrawMenuBar( hwnd );
+					
+				default
+					showerror( "Unexpected command directive");
+					break;
+				
+				endswitch;
+	
+			case (gen_error)
+				showerror ("syntax error");
+				break;	
+	
+			case (gen_eof)
+				//dbg.put ("eof - ");
+				popIncStack();
+				if (@c) then
+					showerror ("Unexpected end of file");
+					break;
+				endif;
+				mov (BOF, esi);
+			
+							
+			case( gen_rbrace )
+				or( 1, eax );
+				break;
+				
+			default
+				showerror ("Unexpected directive");
+				break;
+			endswitch;
+		endfor;
+
+		
+	else
+		showerror("Not a valid Arayna module" );		
+	endif;
+	
+	error:
+
+/*
+	#if( @defined (debug) )
+		// dump symbols
+		push( esi );
+		push( eax );
+		push( ecx );
+		dbg.enters( "dump symbols" );
+		foreach symbol_tbl.item()  do
+			mov( (type tableNode[eax]).Value, ecx );
+			dbg.put( (type tableNode[eax]).id, attrecx.id:5 );
+		endfor;
+		dbg.exits( "dump symbols" );
+		pop( ecx );
+		pop( eax );
+		pop( esi );
+		
+	#endif
+*/
+	if ( ! eax) then
+		//dbg.put ("error during parsing");
+				w.SendMessage( hwnd, ARAYNA_RESET, 0, 0 );
+				CleanUp();
+		jmp done;
+	endif;
+		
+	// parsing done, set EOF to -1 to insure called sections will never return genEOF
+	// (sections have already been parsed and determined to not have eof error)
+		
+	mov (-1, genEOF);
+	//dbg.put ("/parse :", esp);
+	done:
+	//w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+	//w.UpdateWindow( hwnd );
+	
+end parse;
+
+
+
+procedure getObject (area:uns32; room:uns32; container:uns32; object:uns32); @returns ("EAX");
+	// tries to find object in area/room/continaer
+	// returns object ptr. or NULL
+	// error testing has already been done prior to this function call
+	// so we know area, room, object contain valid IDs
+	// optional container must still be checked.
+	
+begin getObject;
+	//dbg.put ("getObject");
+USE (ESI, EDI, EBX);
+	if (container > 0) then
+		testContainer (area, room, container);
+		jc done;
+	else
+		//testRoom (area, room);
+		jc done;
+	endif;
+	
+	// eax contains container in which to search for object id
+	mov (containereax.contains, esi);
+	if (listesi.findNodeID (object)) then
+		mov (listnodeeax.obj, eax);
+	else
+		showerror ("object :", object, " not found in selected area/room/container");
+	endif;
+
+	done:
+ENDUSE;
+//dbg.put ("/getObject");
+end getObject;
+
+
+
+procedure parseIf (src:dword in esi);
+	var
+		return	:attr_t;
+		save_tkn	:save_t;
+		
+begin parseIf;
+	
+	//dbg.put ("parseif");
+	exitif (! getLeftParen(esi)) parseIf;
+	expr( return);
+	if (@c) then
+		mov (gen_error, eax);
+		exit parseIf;
+	endif;
+	
+	getRightParen( esi ); jc done;
+	
+	if (return.id) then
+
+		// true, so run the section until the next closing brace
+		exitif (! getLeftBrace(esi)) parseIf;
+		runSection (esi);
+		cmp( eax, gen_error );	je done;
+
+		// once we get back here, we have to ignore any
+		// .elseif and .else commands.
+		again:
+			saveToken (save_tkn);
+			if (getEasyDirective (esi)) then
+				if (eax = tkn_elseif) then
+					exitif (! getLeftParen(esi)) parseIf;
+					findNext ( gen_rparen, gen_lparen);
+					exitif (! getLeftBrace(esi)) parseIf;
+					findNext ( gen_rbrace, gen_lbrace);
+					jmp again;
+				
+				elseif (eax = tkn_else) then
+					// skip else
+					exitif (! getLeftBrace(esi)) parseIf;
+					findNext ( gen_rbrace, gen_lbrace);
+					// done!
+				else
+					jmp other_if_command;
+				endif;
+			else
+				
+				// some other commands
+				other_if_command:
+				//dbg.put ("other if");
+				restoreToken (save_tkn);
+				or (1, eax);
+				// done!
+			endif;
+		
+	else
+
+		// ignore the following section
+		// if we find an .else, run that
+		// if we find an .elseif, then run parseIf again.
+		
+		exitif (! getLeftBrace(esi)) parseIf;
+		findNext (gen_rbrace, gen_lbrace);
+		
+		saveToken (save_tkn);
+		if (getEasyDirective (esi)) then
+			if (eax = tkn_elseif) then
+				parseIf (esi);
+		
+			elseif (eax = tkn_else) then
+				exitif (! getLeftBrace(esi)) parseIf;
+				runSection (esi);
+				// done!
+			else
+				jmp other_if_command_2;
+			endif;
+		else
+			// some other command, rewind and
+			// continue normally.
+			other_if_command_2:
+			restoreToken( save_tkn);
+			or( 1, eax );
+		endif;
+	endif;
+	done:
+	//dbg.put ("/if :", eax);
+end parseIf;
+
+procedure parseForever (src:dword in esi);
+	var
+		save	:save_t;
+		
+begin parseForever;
+	//dbg.put ("forever at :", loopgenLex);
+	getLeftBrace (esi);	jc done;
+	inc (loopgenLex);
+	saveToken (save);
+	forever
+		runSection (esi);
+		
+		if( eax = &return_attr ) then
+			// same as gen_rbrace
+			restoreToken( save );
+			continue;
+		endif;
+		switch (eax);
+		case (tkn_break, tkn_breakif)
+			
+			findNext (gen_rbrace, gen_lbrace);
+			break;
+		
+		case (tkn_continue, tkn_continueif, gen_rbrace)
+			restoreToken (save);
+		
+		case (gen_error, gen_eof)
+			break;
+		
+		default
+			showerror ("Unexpected result in .forever");
+			break;
+		endswitch;
+	endfor;
+	dec (loopgenLex);
+	clc();
+	done:
+end parseForever;
+
+procedure parseWhile (src:dword in esi);
+	var
+		save	:save_t;
+		attr	:attr_t;
+		
+begin parseWhile;
+	
+	saveToken (save);
+	inc (loopgenLex);
+	dowhile:
+	getLeftParen (esi);	jc done;
+	expr (attr);			jc done;
+	getRightParen (esi);	jc done;
+	getLeftBrace (esi);	jc done;
+	mov (attr.id, eax);
+	if (eax) then
+		runSection (esi);//dbg.put("/while :", eax );
+		
+		if( eax = &return_attr ) then
+			// this is really rbrace
+			jmp doContinue;
+		endif;
+		switch (eax); 
+		case (tkn_break, tkn_breakif)
+			findNext (gen_rbrace, gen_lbrace);
+			
+		case (tkn_continue, tkn_continueif, gen_rbrace)
+			doContinue:
+			restoreToken (save);
+			jmp dowhile;
+			
+		case (gen_error, gen_eof)
+		
+		default
+			showerror ("Unexpected result in .while");
+		endswitch;
+
+	else
+		
+		// false condition, natural...check for .welse
+		findNext (gen_rbrace, gen_lbrace);
+	endif;
+	dec (loopgenLex);
+	clc();
+	done:	
+end parseWhile;
+
+
+procedure parseRandom (src:dword in esi; var attr:attr_t);
+	var
+		low	:dword;
+		high	:dword;
+		
+begin parseRandom;
+	getLeftParen (esi);	jc done;
+	getNumber (esi);		jc done;
+	mov (eax, low);
+	getComma (esi);		jc done;
+	getNumber (esi);		jc done;
+	mov (eax, high);
+	getRightParen (esi);	jc done;
+	mov (low, eax);
+	if (eax > high) then
+		showerror (".random: low value is greater than high");
+		jmp done;
+	endif;
+	
+	rand.range (low, high);
+	mov (attr, ecx);
+	mov (eax, attrecx.id);
+	mov (type_int, attrecx.atype);
+	mov( var_tc, attrecx.tc );
+	mov( 0, attrecx.function );
+	
+	or( 1, eax );
+	clc();
+	done:
+end parseRandom;
+
+procedure parseCommandList;
+begin parseCommandList;
+	
+	// could be empty 
+	peek( esi );
+	if( eax = gen_rparen ) then
+		genLex( esi );
+		jmp done;
+	endif;
+	
+	forever
+		
+		
+		// adding object to command list
+		getObjectID( esi ); 
+		breakif( eax = gen_error );
+			
+		push( esi );
+		if( objectList.findNodeID( genNumber ) ) then
+			
+			mov( listnodeeax.obj, ecx );
+			if( testnz( rtti_command, baseecx.rtti ) ) then
+				
+				// only 1 instance of any topic may be in topic list
+				if( ! commandList.findNodeID( baseecx.id ) ) then
+					commandList.appendObject( [ecx] );
+				endif;
+				
+				
+			else
+				showerror( genID, " :Only command objects may be added" );
+			
+			endif;
+			
+		else
+			
+			showerror( "command ID :", genNumber, " not defined" );
+			
+		endif;
+		pop( esi );
+		breakif( eax = gen_error );
+		
+			
+		genLex( esi );
+		if( eax = gen_rparen ) then
+			
+			or( 1, eax );
+			break;
+			
+		elseif( eax != gen_comma ) then
+			
+			showerror( "syntax error, expecting comma or closing parenthesis" );
+			break;
+		endif;
+		
+	endfor;
+	done:
+end parseCommandList;
+
+
+procedure parseActivate( state:dword );
+begin parseActivate;
+	dbg.put("parse activate");
+	forever
+		
+		if( state ) then
+			
+			// adding object to topic list
+			getObjectID( esi ); dbg.put("*** ", genID );
+			jc done;
+				
+			push( esi );
+			if( objectList.findNodeID( genNumber ) ) then
+				
+				mov( listnodeeax.obj, ecx );
+				if( testnz( rtti_topic, baseecx.rtti ) ) then
+					
+					// only 1 instance of any topic may be in topic list
+					if( ! topicList.findNodeID( baseecx.id ) ) then
+						topicList.appendObject( [ecx] );
+					endif;
+					
+					
+				else
+					showerror( genID, " :Only dialog objects may be activated" );
+					break;
+				endif;
+				
+			else
+				
+				showerror( "dialog ID :", genNumber, " not defined" );
+				break;
+				
+			endif;
+			pop( esi );
+			cmp( eax, gen_error );	je done;
+
+			
+		else
+			
+			// removing topic from topiclist
+			peek( esi );
+			if( eax = gen_atsign ) then
+				genLex( esi );
+				checkAction( esi );
+				if( eax = act_all) then
+					push( esi );
+					topicList.empty();
+					pop( esi );
+					
+				else
+					showerror( "Unknown constant in .deactivate");
+					jmp done;
+				endif;
+				
+			else
+
+				getObjectID( esi );
+				jc done;
+				
+				push( esi );
+				if( objectList.findNodeID( genNumber ) ) then
+					mov( listnodeeax.obj, ecx );
+					if( testnz( rtti_topic, baseecx.rtti ) ) then
+					
+						if( topicList.findNodeID( genNumber )) then
+							topicList.remove( [eax] );
+						endif;
+						
+					else
+						
+						showerror("not a valid dialog :", genNumber );
+						break;
+					endif;
+					
+				else
+					
+					showerror("object not defined :", genNumber );
+					break;
+				endif;
+				pop( esi );
+				cmp( eax, gen_error );		je done;
+				
+			endif;
+			
+		endif;
+		
+		genLex( esi );
+		if( eax = gen_rparen ) then
+			
+			or( 1, eax );
+			break;
+			
+		elseif( eax != gen_comma ) then
+			
+			showerror( "syntax error in dialog, expecting comma or closing parenthesis" );
+			jmp done;
+		endif;
+		
+	endfor;
+	
+	clc();
+	done:
+	
+end parseActivate;
+
+proc
+	parseCommands	:procedure( state:dword );
+	begin parseCommands;
+		forever
+			
+			if( state ) then
+				
+				// adding object to topic list
+				getObjectID( esi ); //dbg.put("*** ", genID );
+				jc done;
+					
+				push( esi );
+				if( objectList.findNodeID( genNumber ) ) then
+					
+					mov( listnodeeax.obj, ecx );
+					if( testnz( rtti_command, baseecx.rtti ) ) then
+						
+						// only 1 instance of any topic may be in topic list
+						if( ! commandList.findNodeID( baseecx.id ) ) then
+							commandList.appendObject( [ecx] );
+						endif;
+						
+						
+					else
+						showerror( genID, " :Only command objects may be added" );
+						break;
+					endif;
+					
+				else
+					
+					showerror( "command ID :", genNumber, " not defined" );
+					break;
+					
+				endif;
+				pop( esi );
+				cmp( eax, gen_error );		je done;
+				
+			else
+				
+				// removing topic from topiclist
+				peek( esi );
+				if( eax = gen_atsign ) then
+					genLex( esi );
+					checkAction( esi );
+					if( eax = act_all) then
+						push( esi );
+						commandList.empty();
+						pop( esi );
+						
+					else
+						showerror( "Unknown constant in .removecommands");
+						jmp done;
+					endif;
+					
+				else
+	
+					getObjectID( esi );
+					breakif( eax = gen_error );
+					
+					push( esi );
+					if( objectList.findNodeID( genNumber ) ) then
+						mov( listnodeeax.obj, ecx );
+						if( testnz( rtti_command, baseecx.rtti ) ) then
+						
+							if( topicList.findNodeID( genNumber )) then
+								commandList.remove( [eax] );
+							endif;
+							
+						else
+							
+							showerror("not a valid command :", genNumber );
+							break;
+						endif;
+						
+					else
+						
+						showerror("object not defined :", genNumber );
+						break;
+					endif;
+					pop( esi );
+					cmp( eax, gen_error );	je done;
+					
+				endif;
+				
+			endif;
+			
+			genLex( esi );
+			if( eax = gen_rparen ) then
+				
+				or( 1, eax );
+				break;
+				
+			elseif( eax != gen_comma ) then
+				
+				showerror( "syntax error in commands, expecting comma or closing parenthesis" );
+				jmp done;
+			endif;
+			
+		endfor;
+		
+		clc();
+		done:
+	end parseCommands;
+
+	
+
+procedure setupTopics; @noframe;
+begin setupTopics;
+	
+	ui.clearlist( hlistdisp );
+	USE( ESI, EDI, EBX );
+	mov( topicList.head, ebx );
+	while( ebx ) do
+		mov( listnodeebx.obj, esi );
+		//if( topicesi.state ) then
+		loadString( topicesi.lbl, buffer_str );
+		ui.addlist( hlistdisp, esi, buffer_str );
+		//endif;
+		mov (listnodeebx.next, ebx);
+	endwhile;
+	ENDUSE;
+	ret();
+end setupTopics;
+
+
+procedure setupCommands; @noframe;
+begin setupCommands;
+	
+	ui.clearlist( hlistcmd );
+	USE( ESI, EDI, EBX );
+	mov( commandList.head, ebx );
+	while( ebx ) do
+		mov( listnodeebx.obj, esi );
+		//if( topicesi.state ) then
+		loadString( topicesi.lbl, buffer_str );
+		ui.addlist( hlistcmd, esi, buffer_str );
+		//endif;
+		mov (listnodeebx.next, ebx);
+	endwhile;
+	ENDUSE;
+	or( 1, eax );
+	ret();
+end setupCommands;
+
+
+//bm=runSection
+procedure runSection (src:dword in esi);
+	// when running section, cursor should be
+	// right after the '{' brace, expecting instructions.
+	// runs until '}' is found.
+	var
+		attr		:attr_t;
+		x			:dword;
+		y			:dword;
+		save_tkn	:save_t;
+
+begin runSection;
+	//dbg.enters ("runSection");
+
+	forever
+		saveToken (save_tkn);
+		genLex (esi);
+		switch (eax);
+
+		case (gen_period)
+			getCommand (esi);
+			breakif (@c);
+			switch (eax);
+	
+			case (tkn_write)
+				parseWrite();
+				breakif (eax = gen_error);
+			
+			case (tkn_if)
+				parseIf (esi);
+				breakif (eax = gen_error);
+	
+			case (tkn_forever)
+				parseForever (esi);
+				breakif (eax = gen_error);
+				
+			case (tkn_while)
+				parseWhile (esi);
+				breakif (eax = gen_error);
+				
+			case (tkn_continue, tkn_break)
+				if (! loopgenLex) then
+					showerror ("continue/break found outside of loop");
+				endif;
+				jmp done;
+				
+			case (tkn_continueif, tkn_breakif)
+				if (! loopgenLex) then
+					showerror ("continueif/breakif found outside of loop");
+				else
+					mov (eax, lasttoken);
+					breakif (! getLeftParen (esi));
+					expr (attr);
+					if (@c) then
+						xor (eax, eax);
+						jmp done;
+					endif;
+					breakif (! getRightParen (esi));
+					mov (attr.id, eax);
+					if (eax) then
+						mov (lasttoken, eax);
+						jmp done;
+					endif;
+				endif;
+				//dbg.put ("bottom of continue/break if");
+	
+			case (tkn_wait)
+				peek( esi );
+				if( eax = gen_lparen ) then
+					getLeftParen( esi );
+					getUnsigned( esi );	breakif( @c );
+					mov( eax, x );
+					getRightParen( esi );
+					
+					mov( 1000, ecx );
+					mov( x, eax );
+					mul (ecx );
+					mov( eax, x );
+					w.UpdateWindow( hwnd );
+					//dbg.put("sleeping for ":, (type uns32 x ));
+					
+					w.LoadCursor( 0, val w.IDC_WAIT);
+					w.SetCursor(eax);
+
+					w.Sleep( x );
+					
+					w.LoadCursor(0,val w.IDC_ARROW);
+					w.SetCursor(eax);
+					
+				else
+					pause_msg( 0 );
+				endif;
+				
+			case (tkn_destroy)
+				
+				breakif (! getLeftParen (esi));
+				expr( attr );		breakif( @c );
+				breakif (! getRightParen(esi));
+				
+				if (attr.atype != type_object ) then
+					showerror ("Expecting an object variable");
+					break;
+				endif;
+			
+				if (mem.isInHeap (attr.id) ) then
+					mem.free (attr.id);
+				else
+					showerror ("Attempting to destroy unavailable object");
+					break;
+				endif;
+			
+			case (tkn_teleport)
+				//dbg.put ("teleport");
+				breakif (! getLeftParen (esi));
+				breakif (! getObjectID(esi));
+				mov (eax, x);
+				breakif (! getRightParen(esi));
+				
+				doTeleport (x);
+				breakif (eax = gen_error);
+				//dbg.put ("/teleport");
+				
+			case( tkn_move )
+				
+				// silent, no event 'teleport'
+				
+				breakif( ! getLeftParen( esi ));
+				breakif( ! getObjectID( esi ));
+				mov( eax, x );
+				breakif( ! getRightParen( esi ));
+				
+				breakif( ! testRoom( x ) );
+				mov( eax, x );
+				if( eax != game.curroom ) then
+					mov( game.curroom, ecx );
+					if( ecx ) then
+						mov( baseecx.id, ecx );
+						mov( ecx, game.fromroom);
+					endif;
+					mov( eax, game.curroom );
+				endif;
+				or( 1, eax );
+				clc();
+
+			case (tkn_const, tkn_var)
+
+				// local consts/vars already processed, skip them.
+
+				breakif (! getLeftBrace (esi));
+				findNext (gen_rbrace, gen_lbrace);
+				
+			case (tkn_spawn)
+				parseSpawn (esi);
+				breakif (eax = gen_error);
+			
+			case (tkn_cls)
+				w.SendMessage (hwnd, ARAYNA_CLS, 0, 0);
+				
+			// dialog tokens			
+			case (tkn_activate)
+				//dbg.put ("tkn_activate");
+				
+				// activate objects in topic list
+				// by setting their state to true
+				breakif( ! getLeftParen( esi ));
+				
+				parseActivate( true );
+				breakif( eax = gen_error );
+				
+				setupTopics();
+				
+			case (tkn_deactivate)
+				
+				breakif( ! getLeftParen( esi ));
+				
+				parseActivate( false );
+				breakif( eax = gen_error );
+				
+				if( game.status = mode_dialog ) then
+					setupTopics();
+				else
+					setupCommands();
+				endif;
+				
+			case( tkn_enddialog )
+				
+				// return to 'normal' mode, show the nav if nav is
+				// visible and list the room inventory
+				
+				mov( mode_normal, game.status );
+				if( showcontrols ) then
+					w.ShowWindow( htoolwind, w.SW_SHOWNORMAL );
+				endif;
+				if( showcommands ) then
+					w.ShowWindow( hlistcmd, w.SW_SHOWNORMAL );
+				endif;
+				w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+				
+				push( esi );
+				mov( game.curroom, esi );
+				roomesi.inventory();
+				pop( esi );
+				
+			case( tkn_begindialog )
+			
+				// enter dialog mode, hide the nav window
+				mov( mode_dialog, game.status );
+				w.ShowWindow( htoolwind, w.SW_HIDE );
+				w.ShowWindow( hlistcmd, w.SW_HIDE );
+				w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+				
+				setupTopics();
+				
+				
+			case( tkn_newdialog )
+				
+				// reset the topic list
+				// and parse new topics into list
+				
+				push( esi );
+				topicList.empty();
+				pop( esi );
+				
+				peek( esi );
+				if( eax = gen_lparen ) then
+					genLex( esi );
+					parseActivate( true );
+				endif;
+				
+				breakif( eax = gen_error );
+
+				// nothing else to do here
+				
+			case( tkn_newcommands )
+			
+				// reset command list
+				// and parse new commands into list
+				
+				push( esi );
+				commandList.empty();
+				pop( esi );
+				
+				peek( esi );
+				if( eax = gen_lparen ) then
+					genLex( esi );
+					parseCommandList();
+				endif;
+				breakif( eax = gen_error );
+				
+				setupCommands();
+				
+				
+				// nothing else to do here
+				
+			case( tkn_dialog )
+				
+				// this works here as well in object section, if used at run-time
+				// it appends topics to the end of the current topic list
+				// this does not clear the topic list as does
+				// .newdialog
+				breakif( ! getLeftParen( esi ) );
+				parseActivate( true );
+				breakif( eax = gen_error );
+			
+			
+			case( tkn_return )
+				//dbg.put("doing ret");
+				evaluate( esi );
+				breakif( @c );
+				copyAttr( eax, &return_attr );
+				
+				dbg.put("returning from section :", return_attr.id );
+				// nothing more to do, find section exit.
+				mov( gen_error, eax );
+				//or( 1, eax );
+				clc();
+				jmp done;
+				
+			case( tkn_showcontrols )
+				
+				//dbg.put("showcontrols");
+				mov( true, showcontrols );
+				w.ShowWindow( htoolwind, w.SW_SHOWNORMAL );
+				w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+	
+			case( tkn_hidecontrols )
+				
+				dbg.put("hidecontrols");
+				mov( false, showcontrols );
+				w.ShowWindow( htoolwind, w.SW_HIDE );
+				w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+	
+			case( tkn_showcommands )
+				
+				//dbg.put("showcontrols");
+				mov( true, showcommands );
+				w.ShowWindow( hlistcmd, w.SW_SHOWNORMAL );
+				w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+	
+			case( tkn_hidecommands )
+				
+				//dbg.put("showcontrols");
+				mov( false, showcommands );
+				w.ShowWindow( hlistcmd, w.SW_HIDE );
+				w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+
+		
+			case (tkn_endgame)
+				w.SendMessage (hwnd, ARAYNA_RESET, 0, 0);
+				CleanUp();
+				mov( gen_error, eax );
+				jmp done;
+				
+			endswitch;
+			
+		
+		case (gen_id, gen_atsign)
+			//dbg.put("id or at");
+			restoreToken (save_tkn);
+			evaluate (esi);
+			//dbg.put("/evaluae");
+			if( ! game.status ) then
+				xor( eax, eax );
+				stc();
+				break;
+			elseif ( @c || !ebx) then
+				showerror ("Unknown operation or command");
+				break;
+			endif;
+
+			
+		case (gen_rbrace)
+			
+			// return NULL
+			mov( 0, return_attr.id );
+			mov( null_tc, return_attr.tc );
+			mov( &return_attr, eax );
+			clc();
+			break;
+		
+		case( gen_eof )
+		
+			showerror( "Unexpected EOF" );
+			break;
+		
+		default
+			showerror ("syntax error in section");
+			break;
+
+		endswitch;
+	
+	endfor;
+	done:
+	//dbg.exits("runSection");
+	//dbg.put("/section :", eax);
+
+end runSection;
+
+//bm=processFunction
+procedure processFunction( var attr:attr_t );
+	
+	var
+		left	:attr_t;
+		dir	:dword;
+		save	:save_t;
+		
+
+begin processFunction;
+	
+	//dbg.enters( "processFunction" );
+	USE( EBX );
+	mov( attr, ebx );
+	mov( attrebx.function, eax ); // dbg.put("function = ", eax );
+	
+	switch( eax );
+	case( func_has )
+		
+		mov( attrebx.id, edi );
+		if( testnz( rtti_container, objedi.rtti ) ) then
+		
+			getLeftParen( esi );		jc done;
+			expr( left );				jc done;
+			testObject( left.id );	jc done;
+			getRightParen( esi );	jc done;
+
+			USE( ESI );
+			mov( attr, ebx );
+			mov( 0, attrebx.function );
+			mov( attrebx.id, edi );
+		
+			if( containeredi.searchOrdinal( left.id ) ) then
+				
+				mov( eax, attrebx.id );
+				mov (type_object, attrebx.atype);
+				mov( var_tc, attrebx.tc );
+
+			else
+				
+				mov( 0, attrebx.id );
+				mov( type_int, attrebx.atype );
+				mov( var_tc, attrebx.tc );
+			endif;
+			ENDUSE;
+			clc();
+			
+		else
+			
+			showerror(".has function may only be used with containers, rooms, agents and the player" )
+	
+		endif;
+	
+	case( func_add )
+		
+		//dbg.put("func_add");
+		// make sure id is container object
+		mov( attrebx.id, edi );
+		if( testnz( rtti_container, objedi.rtti ) ) then
+			
+			getLeftParen( esi );	jc done;
+			expr( left );			jc done;
+			if( left.atype != type_object ) then
+				showerror( "may only add previously created objects, use '.new( <id> )'" );
+				jmp done;
+			endif;
+			
+			mov( left.id, eax );
+			if( testnz( rtti_area, objeax.rtti )) then
+				showerror( "can't add area objects to inventory!");
+				jmp done;
+			endif;
+			
+			push( esi );
+			
+			mov( attr, edi );
+			mov( attredi.id, esi );
+			containeresi.addObject( eax );
+			containeresi.inventory();
+			
+			pop( esi );
+			
+			getRightParen( esi );	jc done;
+			clc();
+
+		else
+			
+			showerror( "'.add'  may only be used with a container object" );
+			
+		endif;
+		
+	case( func_remove )
+		//dbg.put("func_remove");
+		mov( attrebx.id, edi );
+		if( testnz( rtti_container, objedi.rtti ) ) then
+			
+			getLeftParen( esi );		jc done;
+			getObjectID( esi );		jc done;
+			mov( eax, left.id );
+			testObject( eax );		jc done;
+			getRightParen( esi );	jc done;
+			
+			USE( ESI );
+			mov( attr, ebx );
+			mov( 0, attrebx.function );
+			mov( attrebx.id, esi );
+
+			if( containeresi.searchOrdinal( left.id ) ) then
+				containeresi.removeObj( eax );
+				mov( eax, attrebx.id );
+				mov (type_object, attrebx.atype);
+				mov( var_tc, attrebx.tc );
+				containeresi.inventory();
+
+			else
+				
+				mov( 0, attrebx.id );
+				mov( type_int, attrebx.atype );
+				
+			endif;
+			ENDUSE;
+			or( 1, eax );
+			clc();
+			
+		else
+			
+			showerror( "'.remove'  may only be used with a container type object" );
+			
+		endif;
+
+	case( func_exit )
+		//dbg.put("func_exit");
+		mov( attrebx.id, edi );
+		if( testnz( rtti_room, objedi.rtti ) ) then
+		
+			getLeftParen( esi );		jc done;
+			getDirection( esi );		jc done;
+			mov( eax, dir );
+			getComma( esi );			jc done;
+			expr( left );				jc done;
+			getRightParen( esi );	jc done;
+			
+			if( left.atype != type_object ) then
+				if( left.atype == type_int ) then
+					
+					// remove an exit
+					mov( attr, ebx );
+					mov( attrebx.id, ebx );
+					mov( dir, eax );
+					mov( left.id, ecx );
+					//mov( 0, ecx );
+					jmp _switchdir;
+					
+				else
+					jmp rmerr;
+				endif;
+					
+			endif;
+			mov( left.id, ecx );
+
+			if( testnz( rtti_room, objecx.rtti ) ) then
+				
+				
+				mov( attr, ebx );
+				mov( attrebx.id, ebx );
+				mov( dir, eax );
+				
+				mov( roomecx.id, ecx );	// get the id of the room
+				
+				_switchdir:
+				switch (eax);
+				case (dir_north)
+					mov (ecx, roomebx.north);
+				case (dir_south)
+					mov (ecx, roomebx.south);
+				case (dir_east)
+					mov (ecx, roomebx.east);
+				case (dir_west)
+					mov (ecx, roomebx.west);
+				case (dir_northeast)
+					mov (ecx, roomebx.northEast);
+				case (dir_northwest)
+					mov (ecx, roomebx.northWest);
+				case (dir_southeast)
+					mov (ecx, roomebx.southEast);
+				case (dir_southwest)
+					mov (ecx, roomebx.southWest);
+				case (dir_up)
+					mov (ecx, roomebx.up);
+				case (dir_down)
+					mov (ecx, roomebx.down);
+				default
+					showerror( "unknown direction" );
+					jmp done;
+				endswitch;				
+			
+				USE (ESI);
+				UpdateNavigation (game.curroom);
+				ENDUSE;
+				clc();
+				
+			else
+				rmerr:
+				showerror("Destination object in '.exit' must be a room" )
+				
+			endif;
+		
+
+		else
+			
+			showerror("'.exit' function may only be used on room objects" );
+			
+		endif;
+		
+	case( func_state )
+	
+		parseState();	jc done;
+		mov( eax, dir );
+		mov( attr, ebx );
+		mov( attrebx.id, ebx );
+		mov( eax, objebx.state );
+		push( esi );
+		mov( game.curroom, esi );
+		roomesi.inventory();
+		pop( esi );		
+	
+	case( func_isstate )
+	
+		getLeftParen( esi );	jc done;
+		genLex( esi );
+		if( eax != gen_atsign ) then
+			showerror("Expecting an object state");
+			jmp done;
+		endif;
+		checkAction( esi );
+		mov( eax, dir );
+		getRightParen( esi );	jc done;
+		
+		mov( attr, ebx );
+		mov( attrebx.id, edi );
+		mov( dir, eax );
+		switch( eax );
+		
+		case( act_on, act_push )
+			if( testnz( is_on, objedi.state) ) then
+				mov( true, eax );
+			else
+				mov( false, eax );
+			endif;
+
+		case( act_break )
+			if( testnz( is_broken, objedi.state) ) then
+				mov( true, eax );
+			else
+				mov( false, eax );
+			endif;
+
+		case( act_fix )
+			if( testnz( is_broken, objedi.state) ) then
+				mov( true, eax );
+			else
+				mov( false, eax );
+			endif;
+
+		case( act_off, act_pull )
+			if( testz( is_on, objedi.state) ) then
+				mov( true, eax );
+			else
+				mov( false, eax );
+			endif;
+
+		case( act_lock )
+			if( testnz( is_locked, objedi.state) ) then
+				mov( true, eax );
+			else
+				mov( false, eax );
+			endif;
+		
+		case( act_unlock )
+			if( testz( is_locked, objedi.state) ) then
+				mov( true, eax );
+			else
+				mov( false, eax );
+			endif;
+		
+		case( act_open )
+			if( testz( is_closed, objedi.state) ) then
+				mov( true, eax );
+			else
+				mov( false, eax );
+			endif;
+		
+		case( act_close )
+			if( testnz( is_closed, objedi.state) ) then
+				mov( true, eax );
+			else
+				mov( false, eax );
+			endif;
+		
+		case( act_special )
+			if( testnz( is_special, objedi.state ) ) then
+				mov( true, eax );
+			else
+				mov( false, eax );
+			endif; 
+			
+		case( act_shop )
+			if( testnz( is_shop, objedi.state) ) then
+				mov( true, eax );
+			else
+				mov( false, eax );
+			endif;
+		default
+			showerror("Unknown object state");
+			jmp done;
+		
+		endswitch;
+		
+		mov( eax, attrebx.id );
+		mov( var_tc, attrebx.tc );
+		mov( type_int, attrebx.atype );
+		mov( 0, attrebx.function );
+	
+	case( func_verbs )
+		
+		parseVerbs( esi );	jc done;
+		mov( attr, ebx );
+		push( esi );
+		mov( attrebx.id, esi );
+		objesi.setVerbs( &id_attrib );
+		
+		mov( game.curroom, esi );
+		roomesi.inventory();
+		mov( game.pc, esi );
+		pcesi.inventory();
+		pop( esi );
+		
+	
+	case( func_event )
+		//dbg.put( "func_event" );
+		
+		// optional ()
+		peek( esi );
+		if( eax = gen_lparen ) then
+			getLeftParen( esi );	jc done;
+			getRightParen( esi ); jc done;
+		endif;
+		
+		push( esi );
+		push( game.thisobject );
+		mov( attr, esi );
+		mov( attresi.id, esi );
+		objesi.runEvent();
+		pop( game.thisobject );
+		pop( esi );
+		clc();
+		
+	case( func_inv )
+		
+		mov( attrebx.id, ecx );
+		mov( ecx, dir );
+		if( testz( rtti_container, objecx.rtti ) ) then
+			loadString( objecx.lbl, buffer_str );
+			showerror( buffer_str, " is not a container type object" );
+			jmp done;
+		endif;
+		
+		// we have a container
+		getLeftBrace( esi );		jc done;
+		saveToken( save );
+		mov( dir, ecx );
+		mov( containerecx.contains, ebx );
+		mov( listebx.head, ebx );
+		push( game.lastobject );
+		inc( loopgenLex );
+		while( ebx ) do
+			
+			mov( listnodeebx.obj, eax );
+			mov( listnodeebx.next, ebx );
+			
+			mov( eax, game.lastobject );
+			push( ebx );
+			runSection( esi );
+			pop( ebx );
+			
+			if( eax = &return_attr ) then
+				// same as gen_rbrace
+				restoreToken( save );
+				continue;
+			endif;
+			
+			switch (eax);
+			case (tkn_break, tkn_breakif)
+				
+				findNext (gen_rbrace, gen_lbrace);
+				break;
+			
+			case (tkn_continue, tkn_continueif, gen_rbrace)
+				restoreToken (save);
+			
+			case (gen_error, gen_eof)
+				break;
+			
+			default
+				showerror ("Unexpected result in <container>.inv");
+				break;
+			endswitch;
+	
+		welse
+		
+			// send zero object
+			mov( 0, game.lastobject );
+			runSection( esi );
+			
+		endwhile;		
+		dec( loopgenLex );
+		pop( game.lastobject );
+		
+	case( func_write )
+	
+		// careful not to overwrite original attr
+		// that contains our tBuffer pointer
+		
+		mov( attr, eax );
+		mov( attreax.id, eax );
+		mov( eax, dir );		// save tBuffer ptr here
+		
+		getLeftParen( esi );		jc done;
+		forever
+			
+			expr( battr );			jc done;
+			
+			if( battr.atype = type_strconst ) then
+				
+				loadString( battr, buffer_str );
+				push( esi );
+				mov( dir, esi );
+				(type tBuffer[esi]).insertc( '"'  );
+				(type tBuffer[esi]).inserts( buffer_str );
+				(type tBuffer[esi]).insertc( '"'  );
+				(type tBuffer[esi]).inserts( nl );
+				pop( esi );
+				
+			elseif( battr.atype = type_string ) then
+				
+				push( esi );
+				mov( dir, esi );
+				(type tBuffer[esi]).insertc( '"'  );
+				(type tBuffer[esi]).inserts( battr.s );
+				(type tBuffer[esi]).insertc( '"'  );
+				(type tBuffer[esi]).inserts( nl );
+				pop( esi );
+				
+			elseif( battr.atype = type_int ) then
+				
+				push( esi );
+				mov( dir, esi );
+				(type tBuffer[esi]).inserti32( battr.id );
+				(type tBuffer[esi]).inserts( nl );
+				pop( esi );
+			
+			elseif( battr.atype = type_real ) then
+				
+				push( esi );
+				mov( dir, esi );
+				(type tBuffer[esi]).insertr32( battr.real );
+				(type tBuffer[esi]).inserts( nl );
+				pop( esi );
+			
+			else
+				
+				showerror( "writing to file supports only strings, integers and real values" );
+				break;
+			endif;
+			
+			freeAttr( battr );
+			
+			genLex( esi );
+			if( eax = gen_rparen ) then
+				clc();
+				break;
+				
+			elseif( eax != gen_comma ) then
+				showerror("syntax error in write, expecting comma or closing parenthesis" );
+				break;
+			endif;
+			
+		endfor;
+	
+	case( func_read )
+	
+		mov( attr, eax );
+		mov( attreax.id, eax );
+		mov( eax, dir );		// save tBuffer ptr here
+		
+		getLeftParen( esi );		jc done;
+		forever
+			
+			getNextObject( left );		jc done;
+			if( eax != gen_variant ) then
+				showerror("file read only into variant objects" );
+				break;
+			endif;
+			mov( id_attr, eax );		// original variant
+			mov( eax, left.id );
+			
+			
+			push( esi );
+			mov( dir, esi );
+			(type tBuffer[esi]).checkEOF();
+			if( eax ) then
+				pop( esi );
+				showerror("read file, EOF");
+				jmp done;
+			endif;
+			
+			mov( (type tBuffer[esi]).cursor, esi );
+			expr( battr );
+			mov( dir, eax );
+			mov( esi, (type tBuffer[eax]).cursor );
+			pop( esi );
+			jc done;
+			
+			mov( left.id, eax );
+			copyAttr( &battr, eax );
+			mov( var_tc, attreax.tc );	// just in case
+			freeAttr( battr );
+			
+			
+			genLex( esi );
+			if( eax = gen_rparen ) then
+				clc();
+				break;
+				
+			elseif( eax != gen_comma ) then
+				showerror("syntax error in write, expecting comma or closing parenthesis" );
+				break;
+			endif;
+			
+		endfor;
+
+	
+	case( func_save )
+		
+		if( attrebx.tc != file_tc ) then
+			showerror("save function may only be used on file handle objects" );
+			jmp done;
+		endif;
+		
+		getLeftParen( esi );		jc done;
+		
+		// careful not to overwrite attr
+		expr( battr );				jc done;
+		getRightParen( esi );	jc done;
+	
+		mov( &battr, ecx );
+	
+		if( attrecx.atype = type_string ) then
+			str.cpy( attrecx.id, buffer_str );
+		elseif( attrecx.atype = type_strconst ) then
+			loadString( battr, buffer_str );
+		else
+			showerror( "Expecting a quoted string representing a filename");
+			jmp done;
+		endif;
+		freeAttr( battr );
+		
+		push( esi );
+		mov( attr, esi );
+		mov( attresi.id, esi );
+		(type tBuffer[esi]).toFile( buffer_str );		
+		pop( esi );
+		
+	case( func_seek )
+	
+		if( attrebx.tc != file_tc ) then
+			showerror("seek function may only be used on file handle objects" );
+			jmp done;
+		endif;
+		
+		getLeftParen( esi );		jc done;
+		getNumber( esi );			jc done;
+		getRightParen( esi );	jc done;
+		
+		push( esi );
+		mov( attr, esi );
+		mov( attresi.id, esi );
+		(type tBuffer[esi]).bof();
+		mov( genNumber, ecx );
+		while( ecx ) do
+			(type tBuffer[esi]).nextLine();
+			dec( ecx );
+		endwhile;
+		pop( esi );
+		
+	case( func_close )
+		
+		dbg.put("close");
+		
+		if( attrebx.tc != file_tc ) then
+			showerror("close function may only be used on file handle objects" );
+			jmp done;
+		endif;
+
+		push( esi );
+		mov( attrebx.id, esi );
+		(type tBuffer[esi]).destroy();
+		
+		freeAttr( attr );
+		pop( esi );
+
+		// optional ()
+		peek( esi );
+		if( eax = gen_lparen ) then
+			getLeftParen( esi );		jc done;
+			getRightParen( esi );	jc done;
+		endif;
+		
+		
+	default
+	
+		showerror( "unknown function used with object" );
+		
+	endswitch;
+		
+	done:
+	ENDUSE;
+	//dbg.exits( "processFunction" );	
+end processFunction;
+
+
+procedure loadModule;
+	var
+		fname		:string;
+		
+	static
+		cst	:cset := { #0, ',', #$0d };
+		
+	proc
+
+		getn	:procedure {@noframe};
+		begin getn;
+			buffer.getToken( strbuf );
+			//dbg.put("getn :", strbuf );
+			conv.strTou32( strbuf, 0 );
+			ret();
+		end getn;
+		
+		geth	:procedure {@noframe};
+		begin geth;
+			buffer.getToken( strbuf );
+			//dbg.put("geth :", strbuf );
+			conv.strToh32( strbuf, 0 );
+			ret();
+		end geth;
+
+		readContainer		:procedure {@display};
+
+			// recursively reads contents
+			// into container at esi
+			
+			var
+				thiscont	:pointer to arayna_containerClass;
+			
+		begin readContainer;
+			USE( EBX );
+			//dbg.enters("readContainer");
+			
+			mov( esi, thiscont);
+			buffer.reads( strbuf );
+			conv.strTou32( strbuf, 0 );
+			mov( eax, ebx );
+			
+			while( ebx ) do
+				getn();
+				mov( eax, ecx );  //dbg.put("obj id :", (type uns32 ecx ));
+				objectList.findNodeID( ecx );
+				if( ! eax ) then
+					ui.write( "unknown object with id: ", (type uns32 ecx), nl );
+					buffer.nextLine();
+					continue;
+				endif; 
+				mov( listnodeeax.obj, eax );
+				objeax.clone();
+				mov( eax, edx );  // edx = current object to work on
+
+				if( testz( rtti_container, objedx.rtti )) then
+					// read regular item
+					getn(); // charges
+					mov( eax, itemedx.charges );
+					getn();	// stack
+					mov( eax, itemedx.stack );
+					geth();	// state
+					mov( eax, itemedx.state );
+					geth();	// verb[0]
+					mov( eax, itemedx.verbs[0] );
+					geth();	// verb[4]
+					mov( eax, itemedx.verbs[4] );
+					geth();	// verb[8]
+					mov( eax, itemedx.verbs[8] );
+					geth();	// verb[12]
+					mov( eax, itemedx.verbs[12] );
+					buffer.nextLine();
+					
+				else
+					// read container, recursively call readContainer.
+					// to load container objects
+
+					geth();	// state
+					mov( eax, itemedx.state );
+					geth();	// verb[0]
+					mov( eax, itemedx.verbs[0] );
+					geth();	// verb[4]
+					mov( eax, itemedx.verbs[4] );
+					geth();	// verb[8]
+					mov( eax, itemedx.verbs[8] );
+					geth();	// verb[12]
+					mov( eax, itemedx.verbs[12] );
+					buffer.nextLine();
+					mov( edx, esi );
+					readContainer();
+					
+				endif;
+				
+				mov( thiscont, esi );
+				
+				containeresi.addObject( edx );
+				// add the object to the container.			
+				
+				dec( ebx );
+			endwhile;
+			
+			//dbg.exits("readContainer");
+			ENDUSE;
+		end readContainer;
+
+		
+
+begin loadModule;
+
+	// this is to disable script running
+	// while game objects are loading!
+	movzx( game.status, eax );
+	push( eax );
+	mov( 0, game.status );
+	
+	fileList.getHead();
+	mov( eax, ebx );
+	mov( filenodeebx.filename, eax );
+	mov( eax, fname );
+	
+	filesys.extractBase( fname, strbuf );
+	str.put2(strbuf, ".sav" );
+	str.cpy( strbuf, buffer_str );
+	if( ! filesys.exists( strbuf ) ) then
+		ui.write( "file not found :", strbuf, nl );
+		exit loadModule;
+	endif;
+	
+	buffer.create( strbuf );
+	buffer.setDelimiters( cst );
+	
+	// header
+	buffer.reads( strbuf );
+	if( ! str.eq( strbuf, ".arayna.save" ) ) then
+		ui.write( "Error, file:", buffer_str, " is not a valid save file.", nl );
+		jmp done;
+	endif;
+	
+	// module name
+	buffer.reads( strbuf );
+	dbg.put("matching :", strbuf, " : ", fname );
+	if( ! str.eq( strbuf, fname ) ) then
+		ui.write( "Error, file:", buffer_str, " does not match current module name ", nl);
+		jmp done;
+	endif;
+	
+	// player name
+	dbg.put("pc name ");
+	mov( buffer.cursor, eax );
+	if( ( type char [eax]) = '0' ) then
+		buffer.nextLine();
+	else
+		buffer.reads( strbuf );
+		str.a_cpy( strbuf );
+		mov( eax, game.pcname );
+	endif;
+	
+	// curroom
+	dbg.put("curroom");
+	buffer.reads( strbuf );
+	conv.strTou32( strbuf, 0 );
+	
+	mov( roomBuffer.data, edx );
+	mov( [edx+eax*4], esi );
+	if( ! esi ) then
+	//if(! roomList.findNodeID( eax ) ) then
+		ui.write("loading: current room invalid, unable to continue");
+		jmp done;
+	endif;
+	
+	mov( esi, game.curroom );
+	
+	dbg.put("fromroom");
+	// fromroom
+	buffer.reads( strbuf );
+	conv.strTou32( strbuf, 0 );
+	mov( eax, game.fromroom );
+		
+	dbg.put("moves");
+	// moves
+	buffer.reads( strbuf );
+	conv.strTou32( strbuf, 0 );
+	mov( eax, game.moves );
+	
+	dbg.put("pc");
+	// pc inv, erase current and read in from file
+	mov( game.pc, esi );
+	containeresi.emptyInventory();
+	readContainer();
+	
+	// read rooms
+	dbg.put("rooms");
+	buffer.reads( strbuf );
+	conv.strTou32( strbuf, 0 );
+	mov( eax, ebx );
+	dbg.put("n rooms = ", (type uns32 ebx ) );
+	while( ebx ) do
+		//dbg.put("r :", (type uns32 ebx ) );
+		mov( roomBuffer.data, edx );
+		getn();	// room id
+		mov( [edx+eax*4], edx );
+		geth();	// state
+		mov( eax, roomedx.state );
+		geth();	// verbs[0]
+		mov( eax, roomedx.verbs[0] );
+		geth();	// verb[4]
+		mov( eax, roomedx.verbs[4] );
+		geth();	// verb[8]
+		mov( eax, roomedx.verbs[8] );
+		geth();	// verb[12]
+		mov( eax, roomedx.verbs[12] );
+		buffer.nextLine();
+		
+		// get directions
+		getn();	// north
+		mov( eax, roomedx.north );
+		getn();	// south
+		mov( eax, roomedx.south );
+		getn();	// east
+		mov( eax, roomedx.east );
+		getn();	// west
+		mov( eax, roomedx.west );
+		getn();	// ne
+		mov( eax, roomedx.northEast );
+		getn();	// nw
+		mov( eax, roomedx.northWest );
+		getn();	// se
+		mov( eax, roomedx.southEast );
+		getn();	// sw
+		mov( eax, roomedx.southWest );
+		getn();	// up
+		mov( eax, roomedx.up );
+		getn();	// down
+		mov( eax, roomedx.down );
+		buffer.nextLine();
+		
+		// read room objects
+		mov( edx, esi );
+		containeresi.emptyInventory();
+		readContainer();		
+		dec( ebx );
+	endwhile;
+	
+	// there might be no rooms
+	// or perhaps there were rooms but no vars
+	// or no rooms and no vars
+	// if so, there will be zero here
+	
+	dbg.put("vars");
+	
+	read_vars:	
+	mov( buffer.cursor, eax );
+	cmp( (type byte[eax]), 0 );
+	je done;
+	
+	buffer.getToken( strbuf );
+	if( symbol_tbl.lookup ( strbuf ) ) then
+		mov( (type tableNode[eax]).Value, ecx );
+		geth();	// id
+		mov( eax, attrecx.id );
+		getn();	// atype
+		mov( eax, attrecx.atype );
+		buffer.nextLine();
+		if( attrecx.atype = type_string ) then
+			buffer.reads( strbuf );
+			str.a_cpy( strbuf );
+			mov( eax, attrecx.id );
+		endif;
+	else
+		ui.write("unable to find symbol :", strbuf, nl );
+		buffer.nextLine();
+	endif;
+	
+	jmp read_vars;
+		
+	done:
+	
+	// restore game status
+	pop( eax );
+	mov( al, game.status );
+	
+	buffer.destroy();
+	
+	dbg.put("/loadModule");
+end loadModule;
+
+procedure saveModule;
+	var
+		fname		:string;
+	
+	/*
+		.arayna.save
+		<module filename>
+		<pc name> or 0
+		id curroom
+		id fromroom
+		n moves
+		n pc inv items, next n lines of objects:
+		obj id, charges, stack, state, verbs0, verbs4, verbs8, verbs12  // for items or...
+		obj id, state, verbs0, verbs4, verbs8, verbs12  // followed by n items in container
+		n rooms
+		r id, state, verbs0, verbs4, verbs8, verbs12
+		n,s,e,w,ne,nw,se,sw,u,d
+		n r id inv items, next n lines of objects:
+		obj id, charges, stack, state
+	
+	*/
+
+	proc
+		writeContainer		:procedure;
+		
+			// recursively writes all the contents
+			// of a container in esi
+		
+		begin writeContainer;
+			//dbg.enters( "writeContainer" );
+			USE( EBX );
+			listesi.getCount();
+			mov( esi, ebx );
+			buffer.insert( (type uns32 eax ), nl);
+			listebx.getHead();
+			mov( eax, ebx );
+			while( ebx ) do
+				mov( listnodeebx.obj, ecx ); //dbg.put("object :", ecx );
+				if( testz( rtti_container, objecx.rtti ) ) then
+					
+					// normal item, write it out
+					buffer.insert( itemecx.id, ',', itemecx.charges, ',',
+							itemecx.stack, ',', itemecx.state, ',',
+							itemecx.verbs[0], ',', itemecx.verbs[4], ',',
+							itemecx.verbs[8], ',', itemecx.verbs[12], nl );
+							
+				else
+					
+					// object is a container. write it out, get it's
+					// contents into esi and call writeContainer recursively
+					buffer.insert( containerecx.id, ',', containerecx.state, ',',
+							containerecx.verbs[0], ',', containerecx.verbs[4], ',',
+							containerecx.verbs[8], ',', containerecx.verbs[12], nl );
+							
+					mov( ecx, esi );
+					mov( containeresi.contains, esi );
+					writeContainer(); 
+				endif;
+				mov( listnodeebx.next, ebx );
+			endwhile;
+			ENDUSE;
+			//dbg.exits( "writeContainer" );
+		end writeContainer;
+
+begin saveModule;
+
+USE (EAX, EBX, ECX, ESI, EDI);
+	dbg.put("saveModule" );
+	if( game.status != mode_normal ) then
+		ui.write("may only save in normal mode" nl );
+		jmp done;	
+	endif;
+
+	fileList.getHead();
+	mov( eax, ebx );
+	mov( filenodeebx.filename, eax );
+	mov( eax, fname );
+
+	dbg.put(".arayna");
+	buffer.create();
+	buffer.insert( ".arayna.save" nl );
+	str.cpy( fname, strbuf );
+	
+	buffer.insert( fname, nl );
+	
+	dbg.put("pc name");
+	mov( game.pcname, eax );
+	if( eax ) then
+		str.a_cpy( eax );
+		mov( eax, ebx );
+		buffer.insert( (type string eax), nl );
+		str.free( ebx );
+	else
+		mov( 0, eax );
+		buffer.insert( (type uns32 eax), nl );
+	endif;
+
+	dbg.put("curroom");
+	mov( game.curroom, eax );
+	if( eax ) then
+		mov( roomeax.id, eax );
+	else
+		mov( 0, eax );
+	endif;	
+	buffer.insert( (type uns32 eax ), nl );
+	
+	dbg.put("from room");
+	mov( game.fromroom, eax );
+	buffer.insert( (type uns32 eax ), nl );
+	
+	dbg.put("moves");
+	buffer.insert( game.moves, nl );
+
+	dbg.put("pc");
+	mov( game.pc, esi );
+	if( esi ) then
+		mov( pcesi.contains, esi );
+		writeContainer();
+	endif;
+	
+	dbg.put("rooms");
+	roomList.getCount();
+	buffer.insert( (type uns32 eax) , nl );
+	roomList.getHead();
+	mov( eax, ebx );
+	while( ebx ) do
+		mov( listnodeebx.obj, ecx );
+		buffer.insert( '_', roomecx.id, ',', roomecx.state, ',',
+			roomecx.verbs[0], ',', roomecx.verbs[4], ',',
+			roomecx.verbs[8], ',', roomecx.verbs[12], nl,
+			roomecx.north, ',', roomecx.south, ',',
+			roomecx.east, ',', roomecx.west, ',', roomecx.northEast, ',',
+			roomecx.northWest, ',', roomecx.southEast, ',',
+			roomecx.southWest, ',', roomecx.up, ',', roomecx.down, nl );
+		
+		mov( roomecx.contains, esi );
+		writeContainer();
+		mov( listnodeebx.next, ebx );
+	endwhile;
+	
+	dbg.put("vars");
+	// snapshot of vars
+	// note that type_object vars do not retain the object memory
+	// they should not be counted upon.
+	foreach symbol_tbl.item()  do
+		mov( eax, ebx );
+		mov( (type tableNode[ebx]).Value, ecx );
+		if( attrecx.tc = var_tc ) then
+			buffer.insert( (type tableNode[ebx]).id, ',',
+					attrecx.id, ',', attrecx.atype, nl );
+			
+			if( attrecx.atype = type_string ) then
+				str.a_cpy( attrecx.id );
+				mov( eax, ecx );
+				buffer.insert( (type string ecx ), nl );
+				str.free( ecx );
+			endif;
+		endif;
+	endfor;
+
+	// end the file with zero byte
+	buffer.insertByte( 0 );
+
+	filesys.extractBase( fname, strbuf );
+	str.put2(strbuf, ".sav" );
+	buffer.toFile( strbuf );
+	buffer.destroy();
+//	mov (game.moves, saveEBX.moves);
+	done:
+ENDUSE;
+
+end saveModule;
+
+procedure parseGetString( var attr:attr_t );
+begin parseGetString;
+	getLeftParen( esi );		jc done;
+	expr( attr );				jc done;
+	mov( attr, ecx );
+	if( attrecx.atype = type_string || attrecx.atype = type_strconst )then
+		loadString( attr, buffer_str );
+		arayna_getString( buffer_str, attr );
+	else
+		showerror( ".getstring parameter must be a string object");
+		jmp done;
+	endif;
+	
+	getRightParen( esi );	jc done;
+	clc();
+	done:
+end parseGetString;
+
+
+
+procedure parseGetNumber( var attr:attr_t );
+begin parseGetNumber;
+	
+	getLeftParen( esi );		jc done;
+	expr( attr );				jc done;
+	mov( attr, ecx );
+	if( attrecx.atype = type_string || attrecx.atype = type_strconst )then
+		loadString( attr, buffer_str );
+		arayna_getNumber( buffer_str, attr );
+	else
+		showerror( ".getnumber parameter must be a string object");
+		jmp done;
+	endif;
+	
+	getRightParen( esi );	jc done;
+
+	clc();
+	done:
+end parseGetNumber;
+
+
+
+end moduleunit;

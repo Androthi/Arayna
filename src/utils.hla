@@ -1,0 +1,714 @@
+unit utilsunit;
+	#include ("src/arayna.hhf")
+
+
+readonly
+	version	:string := "v0.95.00";
+	
+	AboutAraynaTxt: string :=
+	("Arayna - a GUI console running a scripting engine for developing Interactive Fiction style games." nl
+	nl "Developed by: Sevag Krikorian" nl);
+
+//? do i really want 3 into ecx here?  maybe 4?
+procedure copyLword (src:dword; dst:dword);
+	// souce address in src
+	// dest address in dst
+	// copy 4 dwords.
+begin copyLword;
+USE (ESI, EDI, ECX);
+	mov (src, esi);
+	mov (dst, edi);
+	mov (3, ecx);
+	rep.movsd();
+ENDUSE; 
+end copyLword;
+
+procedure zeroLword (src:dword );
+	// zero out lword
+	// src = address of lword
+begin zeroLword;
+USE (EAX, EDI, ECX);
+	xor (eax, eax);
+	mov (src, edi);
+	mov (4, ecx);
+	rep.stosd();
+ENDUSE;
+end zeroLword;
+
+procedure copyAttr (src:dword; dest:dword);
+begin copyAttr;
+USE (ESI, EDI, ECX, EAX);
+	mov (src, esi);
+	mov (dest, edi);
+	mov (@size(attr_t), ecx);
+	rep.movsb();
+ENDUSE;
+end copyAttr;
+
+procedure zeroAttr( var src:attr_t );
+begin zeroAttr;
+	USE( EDI, ECX, EAX );
+	mov( src, edi );
+	mov( @size( attr_t ), ecx );
+	xor( eax, eax );
+	rep.stosb();
+	ENDUSE;
+end zeroAttr;
+
+procedure Proc_Spawn(lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+begin Proc_Spawn;
+	mov (umsg, eax);
+	if (eax = w.WM_COMMAND) then
+		mov(wparam,eax);
+		mov(eax,edx);
+		shr(16,edx);
+		and($0ffff,eax);
+		if (edx = w.BN_CLICKED) then
+			
+			if (eax = w.IDOK) then
+				mov( false, return );
+				w.GetDlgItemInt (hwin, IDC_SPAWN_ID, &return, false);
+				if( return ) then
+					mov (eax, return);
+				else
+					w.GetDlgItemTextA( hwin, IDC_SPAWN_ID, &buf, @elements( buf)-1 );
+					if( eax ) then
+						str.cpyz( &buf, strbuf );
+						tableLookup( strbuf );
+						if( eax = gen_number ) then
+							move( genNumber, return );
+						endif;
+					endif;
+				endif; 				
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+
+			elseif (eax = w.IDCANCEL) then
+				
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+				
+			endif;
+			
+		endif;
+	
+	elseif (eax = w.WM_INITDIALOG) then
+		
+		mov (false, return);
+		w.GetDlgItem (hwin, IDC_SPAWN_ID);
+		w.SetFocus (eax);
+	
+	elseif (eax = w.WM_CLOSE) then
+		w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+	
+	elseif (eax = w.WM_DESTROY) then
+		w.EndDialog (hwin, return);
+	endif;
+	
+	xor (eax, eax);
+end Proc_Spawn;
+
+
+procedure Proc_Teleport(lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+begin Proc_Teleport;
+	mov (umsg, eax);
+	if (eax = w.WM_COMMAND) then
+		mov(wparam,eax);
+		mov(eax,edx);
+		shr(16,edx);
+		and($0ffff,eax);
+		if (edx = w.BN_CLICKED) then
+			
+			if (eax = w.IDOK) then
+				mov( false, return );
+				w.GetDlgItemInt (hwin, IDC_DBG_TELEPORT_ROOM, &return, false);
+				if( return ) then
+					mov (eax, return);
+				else
+					w.GetDlgItemTextA( hwin, IDC_DBG_TELEPORT_ROOM, &buf, @elements( buf)-1 );
+					if( eax ) then
+						str.cpyz( &buf, strbuf );
+						tableLookup( strbuf );
+						if( eax = gen_number ) then
+							move( genNumber, return );
+						endif;
+					endif;
+				endif; 				
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+			
+			elseif (eax = w.IDCANCEL) then
+				
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+				
+			endif;
+			
+		endif;
+	
+	elseif (eax = w.WM_INITDIALOG) then
+		
+		mov (false, return);
+		w.GetDlgItem (hwin, IDC_DBG_TELEPORT_ROOM);
+		w.SetFocus (eax);
+	
+	elseif (eax = w.WM_CLOSE) then
+		w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+	
+	elseif (eax = w.WM_DESTROY) then
+		w.EndDialog (hwin, return);
+	endif;
+	
+	xor (eax, eax);
+	
+end Proc_Teleport;
+
+procedure Proc_Amount(lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+begin Proc_Amount;
+	mov (umsg, eax);
+	if (eax = w.WM_COMMAND) then
+		mov(wparam,eax);
+		mov(eax,edx);
+		shr(16,edx);
+		and($0ffff,eax);
+		if (edx = w.BN_CLICKED) then
+			
+			if (eax = w.IDOK) then
+				
+				w.GetDlgItemInt (hwin, IDC_EDIT_AMOUNT, null, false);
+				mov (eax, return);
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+			
+			elseif (eax = w.IDCANCEL) then
+				
+				mov( 0, return );
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+
+			elseif (eax = IDC_AMOUNT_ALL) then
+		
+				mov (-1, return);
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+				
+			endif;
+		
+		endif;
+	
+	elseif (eax = w.WM_INITDIALOG) then
+		
+		mov (false, return);
+		w.GetDlgItem (hwin, IDC_EDIT_AMOUNT);
+		w.SetFocus (eax);
+	
+	elseif (eax = w.WM_CLOSE) then
+		w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+	
+	elseif (eax = w.WM_DESTROY) then
+		w.EndDialog (hwin, return);
+	endif;
+	
+	xor (eax, eax);
+end Proc_Amount;
+
+
+procedure Proc_About(lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+	
+begin Proc_About;
+	mov (umsg, eax);
+	
+	if (eax = w.WM_CLOSE) then
+		
+		w.SendMessage(hwin, w.WM_DESTROY, 0, 0);
+	
+	elseif (eax = w.WM_INITDIALOG) then
+		
+
+		if (! lparam) then
+
+			str.put (strbuf, "About Arayna ", version);
+			w.SetWindowText (hwin, strbuf);
+			w.GetDlgItem ( hwin, IDC_ABOUT);
+			w.SendMessage (eax, w.WM_SETTEXT, 0, AboutAraynaTxt);
+		else
+			
+			str.cpy ("Arayna Module Info", strbuf);
+			w.SetWindowText (hwin, strbuf);
+			w.GetDlgItem ( hwin, IDC_ABOUT);
+			mov( eax, ecx );
+			mov( game.araynaObj, eax );
+			if( loadString( objeax.desc, buffer_str ) ) then
+				w.SendMessage (ecx, w.WM_SETTEXT, 0, buffer_str );
+			endif; 
+		endif;
+			
+
+	elseif (eax = w.WM_CLOSE) then
+		
+		w.SendMessage (hwin, w.WM_DESTROY, 0, 0);
+		
+	elseif (eax = w.WM_DESTROY) then
+	
+		w.EndDialog (hwin, 0);
+		
+	endif;
+	
+	xor (eax, eax);
+	
+end Proc_About;
+
+
+
+procedure Proc_GetString(lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+begin Proc_GetString;
+
+USE (ESI, EDI, EBX);
+	mov (umsg, eax);
+	
+	if (eax = w.WM_COMMAND) then
+
+		mov(wparam,eax);
+		mov(eax,edx);
+		shr(16,edx);
+		and($0ffff,eax);
+		if (edx = w.BN_CLICKED) then
+			
+			if (eax = w.IDOK) then
+				
+				w.GetDlgItemTextA ( hwin, IDC_EDT_STRING, buf, @size(buf));
+				str.a_cpyz (&buf);
+				mov (eax, return);
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+				
+			elseif (eax = w.IDCANCEL) then
+				
+				mov (0, return);
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+			endif;
+		endif;
+		
+	elseif (eax = w.WM_CLOSE) then
+		
+		w.SendMessage (hwin, w.WM_DESTROY, 0, 0);
+		
+	elseif (eax = w.WM_DESTROY) then
+	
+		w.EndDialog (hwin, return);
+		
+	elseif (eax = w.WM_INITDIALOG) then
+		
+		mov (0, return);
+		w.SetWindowText (hwin, lparam);
+		w.GetDlgItem (hwin, IDC_EDT_STRING);
+		w.SetFocus (eax);
+	endif;
+	
+	xor (eax, eax);
+	
+ENDUSE;	
+end Proc_GetString;
+
+
+
+procedure Proc_GetNumber(lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+begin Proc_GetNumber;
+
+USE (ESI, EDI, EBX);
+	mov (umsg, eax);
+	
+	if (eax = w.WM_COMMAND) then
+
+		mov(wparam,eax);
+		mov(eax,edx);
+		shr(16,edx);
+		and($0ffff,eax);
+		if (edx = w.BN_CLICKED) then
+			
+			if (eax = w.IDOK) then
+				
+				w.GetDlgItemInt ( hwin, IDC_EDT_NUMBER, &return, true);
+				mov (eax, return);
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+				
+			elseif (eax = w.IDCANCEL) then
+				
+				mov (0, return);
+				w.SendMessage (hwin, w.WM_DESTROY, 0,0);
+			endif;
+		endif;
+		
+	elseif (eax = w.WM_CLOSE) then
+		
+		w.SendMessage (hwin, w.WM_DESTROY, 0, 0);
+		
+	elseif (eax = w.WM_DESTROY) then
+	
+		w.EndDialog (hwin, return);
+		
+	elseif (eax = w.WM_INITDIALOG) then
+		
+		mov (0, return);
+		w.SetWindowText (hwin, lparam);
+		w.GetDlgItem (hwin, IDC_EDT_NUMBER);
+		w.SetFocus (eax);
+	endif;
+	
+	xor (eax, eax);
+	
+ENDUSE;	
+end Proc_GetNumber;
+
+
+procedure arayna_getString( query:string; var attr:attr_t );
+begin arayna_getString;
+	USE (ESI, EDI, EBX);
+	zeroAttr( attr );
+	get:
+	w.DialogBoxParam (hinst, val IDD_STRING, hwnd, &Proc_GetString, query);
+	if( ! return ) then
+		invalid:
+		ui.write( "Invalid string input, please enter a string" nl )
+		jmp get;
+	else
+		mov( return, esi );
+		mov( [esi], al );
+		if( al in 'a'..'z' || al in 'A'..'Z' ) then
+			mov( attr, ebx );
+			dbg.put("got string :", (type string esi ));
+			mov( esi, attrebx.id );
+			mov( type_string, attrebx.atype );
+			mov( var_tc, attrebx.tc );
+		else
+			jmp invalid;
+		endif;
+	endif;	
+	ENDUSE;
+
+end arayna_getString;
+
+procedure arayna_getNumber( query:string; var attr:attr_t );
+begin arayna_getNumber;
+	USE (ESI, EDI, EBX);
+	zeroAttr( attr );
+	w.DialogBoxParam (hinst, val IDD_NUMBER, hwnd, &Proc_GetNumber, query);
+	mov( attr, ebx );
+	mov( return, eax );
+	mov( eax, attrebx.id );
+	mov( type_int, attrebx.atype );
+	mov( var_tc, attrebx.tc );
+	ENDUSE;
+
+end arayna_getNumber;
+
+
+procedure Cmd_Dbg_Teleport( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Dbg_Teleport;
+	
+	//dbg.put ("teleport openmod =", openmod);
+	if (openmod) then
+		w.DialogBoxParam (hinst, val IDD_DBG_TELEPORT, hwnd, &Proc_Teleport, 0);
+		if (eax) then
+			doTeleport( eax );
+		endif;
+	endif;
+	
+	
+end Cmd_Dbg_Teleport;
+
+procedure Cmd_Dbg_Spawn( hwin:dword; wparam:dword; lparam:dword );	
+	// debug, spawns requested object or agent
+	// into current room
+begin Cmd_Dbg_Spawn;
+
+	if (! openmod) then
+		exit Cmd_Dbg_Spawn;	
+	endif;
+	w.DialogBoxParam (hinst, val IDD_DBG_SPAWN, hwnd, &Proc_Spawn, 0);
+	if (eax) then
+		if (objectList.findNodeID (eax) ) then
+			mov (listnodeeax.obj, eax);
+			baseeax.clone();
+			mov( game.curroom, esi );
+			roomesi.addObject( eax );
+			roomesi.inventory();
+		endif;
+	endif;	
+end Cmd_Dbg_Spawn;
+
+procedure Cmd_Dbg_Listrooms( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Dbg_Listrooms;
+	
+	ui.write(nl "============================================" nl nl );
+	mov( roomList.head, ecx );
+	while( ecx ) do
+		mov( listnodeecx.obj, edx );
+		loadString( objedx.lbl, buffer_str );
+		ui.write( objedx.id, #$9, buffer_str, nl, "	[", roomedx.north, ',',
+					roomedx.south, ',', roomedx.east, ',', roomedx.west, ',',
+					roomedx.northEast, ',', roomedx.northWest, ',',
+					roomedx.southEast, ',', roomedx.southWest, ',', 
+					roomedx.up, ',', roomedx.down, " ]", nl nl );
+		mov( listnodeecx.next, ecx ); 
+	endwhile;
+	ui.write( nl "============================================" nl nl );
+	
+end Cmd_Dbg_Listrooms;
+
+
+procedure Cmd_Dbg_Listobj( hwin:dword; wparam:dword; lparam:dword );
+begin Cmd_Dbg_Listobj;
+	
+	ui.write(nl "============================================" nl nl );
+	mov( objectList.head, ecx );
+	while( ecx ) do
+		mov( listnodeecx.obj, edx );
+		loadString( objedx.lbl, buffer_str );
+		ui.write( objedx.id, #$9, buffer_str, nl );
+		mov( listnodeecx.next, ecx ); 
+	endwhile;
+	
+	ui.write( nl "============================================" nl nl );	
+end Cmd_Dbg_Listobj;
+
+
+procedure proc_Control(lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+begin proc_Control;
+	mov (umsg, eax);
+	
+	if (eax = w.WM_COMMAND) then
+		mov	(wparam, eax);
+		and	($ffff,eax);
+		switch( eax );
+		case( IDC_NORTH )
+		
+			Cmd_North( hwin, wparam, lparam );
+				
+		case( IDC_CENTER )
+		
+			Cmd_Center( hwin, wparam, lparam );
+		
+		case( IDC_NORTHEAST )
+		
+			Cmd_NorthEast( hwin, wparam, lparam );
+		
+		case( IDC_EAST )
+		
+			Cmd_East( hwin, wparam, lparam );
+		
+		case( IDC_SOUTHEAST )
+		
+			Cmd_SouthEast( hwin, wparam, lparam );
+		
+		case( IDC_SOUTH )
+		
+			Cmd_South( hwin, wparam, lparam );
+			
+		case( IDC_SOUTHWEST )
+		
+			Cmd_SouthWest( hwin, wparam, lparam );
+		
+		case( IDC_WEST )
+		
+			Cmd_West( hwin, wparam, lparam );
+		
+		case( IDC_NORTHWEST )
+		
+			Cmd_NorthWest( hwin, wparam, lparam );
+		
+		case( IDC_UP )
+		
+			Cmd_Up( hwin, wparam, lparam );
+			
+		case( IDC_DOWN )
+		
+			Cmd_Down( hwin, wparam, lparam );
+		
+		case( IDC_INV )
+			w.IsDlgButtonChecked( hwin, IDC_INV );
+			if( eax = w.BST_CHECKED ) then
+				w.ShowWindow( hwndinv, w.SW_SHOWNORMAL );
+			else
+				w.ShowWindow( hwndinv, w.SW_HIDE );
+			endif;
+		endswitch;
+
+	elseif( eax = w.WM_MOVE) THEN
+
+		w.SendMessage( hwnd, w.WM_SIZE, 0, 0 );
+
+	elseif (eax = w.WM_INITDIALOG) then
+
+		move( hwin, htoolwind );
+
+		// get navigation buttons
+		mov ( w.GetDlgItem (hwin, IDC_NORTH), hnorth);
+		mov ( w.GetDlgItem (hwin, IDC_SOUTH), hsouth);
+		mov ( w.GetDlgItem (hwin, IDC_EAST), heast);
+		mov ( w.GetDlgItem (hwin, IDC_WEST), hwest);
+		mov ( w.GetDlgItem (hwin, IDC_NORTHEAST), hnortheast);
+		mov ( w.GetDlgItem (hwin, IDC_NORTHWEST), hnorthwest);
+		mov ( w.GetDlgItem (hwin, IDC_SOUTHEAST), hsoutheast);
+		mov ( w.GetDlgItem (hwin, IDC_SOUTHWEST), hsouthwest);
+		mov ( w.GetDlgItem (hwin, IDC_UP), hup);
+		mov ( w.GetDlgItem (hwin, IDC_DOWN), hdown);
+		mov( w.GetDlgItem( hwin, IDC_INV), hinv );
+
+
+		
+	elseif( eax = w.WM_CLOSE ) then 		
+		
+		w.SendMessage(hwin, w.WM_DESTROY, 0, 0);
+		
+	elseif (eax = w.WM_DESTROY) then
+	
+		w.DestroyWindow( hwin );
+	
+	else
+		
+		xor( eax, eax );
+		exit proc_Control;
+	endif;
+	or( 1, eax );
+	
+end proc_Control;
+
+procedure Proc_Inv(lparam:dword; wparam:dword; umsg:uns32; hwin:dword);
+	
+	var
+		rect	:arect;
+		
+
+
+
+begin Proc_Inv;
+	pushabi;
+	mov (umsg, eax);
+	
+	if (eax = w.WM_COMMAND) then
+		mov(wparam,eax);
+		mov(eax,edx);
+		shr(16,edx);
+		and($0ffff,eax);
+		
+		if( edx = w.LBN_SELCHANGE ) then
+			move( hlistinv, game.view );
+			//dbg.put("change from :", hlistinv, "  ", lparam, "  ", hwin );
+			ListView_Notify( hwin, wparam, lparam );
+		endif;	
+
+	elseif( eax = w.WM_SIZE) THEN
+
+		w.GetClientRect( hwin, rect );
+		w.MoveWindow( hlistinv, 0, 0, rect.width, rect.height, true );
+		
+		//w.InvalidateRect(hlistinv, NULL, true );
+
+	elseif (eax = w.WM_INITDIALOG) then
+
+		move( hwin, hwndinv );
+		mov( w.GetDlgItem( hwin, IDC_VIEW_INV), hlistinv );
+		
+	elseif( eax = w.WM_CLOSE ) then 		
+
+		w.CheckDlgButton( htoolwind, IDC_INV, w.BST_UNCHECKED );
+		w.ShowWindow( hwin, w.SW_HIDE ); 
+	
+	else
+		
+		xor( eax, eax );
+		popabi;
+		exit Proc_Inv;
+
+	endif;
+	or( 1, eax );
+	popabi;
+end Proc_Inv;
+
+
+procedure Proc_Window ( lparam:dword; wparam:dword; umsg:uns32; hwin:dword );
+// main window message handler
+
+begin Proc_Window;
+
+	mov(umsg,eax);
+	mov(&message_table,edx);
+	
+	FOREVER
+		mov( (type MsgProcPtr_t [edx]).MessageHndlr, ecx );
+		IF( ecx = 0 ) THEN
+			w.DefWindowProc( hwin, umsg, wparam, lparam );
+			EXIT Proc_Window;
+		ELSEIF( eax = (type MsgProcPtr_t [edx]).MessageValue ) THEN
+
+			push( hwin );
+			push( wparam );
+			push( lparam );
+			call( ecx );
+			sub(eax,eax);
+			BREAK;
+		ENDIF;
+		add( @size( MsgProcPtr_t ), edx );
+	ENDFOR;
+
+end Proc_Window;
+
+procedure _pause( time:dword );
+	var
+		_msg	:w.MSG;
+
+begin _pause;
+	
+	forever
+		w.LoadCursor( 0, val w.IDC_WAIT);
+		w.SetCursor(eax);
+
+		w.WaitForSingleObject( hwnd, time );
+		w.PeekMessage (_msg, hwnd, 0, 0, w.PM_REMOVE);
+		if (_msg.message = w.WM_LBUTTONDOWN ) then
+			break;
+		endif;
+	endfor;
+	
+end _pause;
+
+procedure pause_msg( time:dword );
+begin pause_msg;
+	ui.write ( nl "Click mouse to continue" nl);
+	w.UpdateWindow (hwnd);
+	_pause( time );	
+end pause_msg;
+
+
+procedure _query (messageStr:string);
+begin _query;
+	w.MessageBox ( hwnd, messageStr, "Yes/No query", w.MB_YESNO);
+	if (eax = w.IDNO) then
+		xor (eax, eax);
+	else
+		or (1, eax);
+	endif;
+end _query;
+
+
+
+end utilsunit;
+
+
+/*
+procedure getIndex (x:dword; y:dword; row_size:dword);
+// compute the index required into a 2 dim array
+// given a 1-based coordinate system.
+// element size will be dword
+// x = col index
+// y = row index
+// size = row size
+
+// formula: Element = base + (col_index+ * row_size + row_index) * element_size
+// returns
+// EAX = offset of element from base
+begin getIndex;
+	mov (x, eax);
+	sub (1, eax);
+	mov (y, ecx);
+	sub (1, ecx);
+	mul	(row_size);		// eax = col_index * row_size
+	add	(ecx, eax);	// eax += row_index
+	shl	(2, eax);	// eax = eax * 4
+
+	
+end getIndex;
+*/

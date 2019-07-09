@@ -1,0 +1,225 @@
+
+const
+	
+	filenodeebx	:text := "(type arayna_fileNode[ebx])";
+	filenodeecx	:text := "(type arayna_fileNode[ecx])";
+	listnodeebx	:text := "(type arayna_listNode[ebx])";
+	listnodeeax	:text := "(type arayna_listNode[eax])";
+	listnodeecx	:text := "(type arayna_listNode[ecx])";
+
+	baseesi			:text := "(type arayna_baseClass[esi])";
+	baseeax			:text := "(type arayna_baseClass[eax])";
+	baseecx			:text := "(type arayna_baseClass[ecx])";
+	baseebx			:text := "(type arayna_baseClass[ebx])";
+	baseedx			:text := "(type arayna_baseClass[edx])";
+
+	objesi			:text := "(type arayna_objectClass [esi])";
+	objecx			:text := "(type arayna_objectClass [ecx])";
+	objebx			:text := "(type arayna_objectClass [EBX])";
+	objeax			:text := "(type arayna_objectClass [EAX])";
+	objedx			:text := "(type arayna_objectClass [edx])";
+	objedi			:text := "(type arayna_objectClass [edi])";
+
+	itemebx			:text := "(type arayna_itemClass[ebx])";
+	itemesi			:text := "(type arayna_itemClass[esi])";
+	itemedx			:text := "(type arayna_itemClass[edx])";
+	itemecx			:text := "(type arayna_itemClass[ecx])";
+	itemeax			:text := "(type arayna_itemClass[eax])";
+
+	agentecx			:text := "(type arayna_agentClass[ecx])";
+	agentebx			:text := "(type arayna_agentClass[ebx])";
+	agentedx			:text := "(type arayna_agentClass[edx])";
+	agenteax			:text := "(type arayna_agentClass[eax])";
+	agentesi			:text := "(type arayna_agentClass[esi])";
+	
+	containereax	:text := "(type arayna_containerClass[eax])";
+	containeresi	:text := "(type arayna_containerClass[esi])";
+	containerecx	:text := "(type arayna_containerClass[ecx])";
+	containeredi	:text := "(type arayna_containerClass[edi])";
+	
+	topicesi			:text := "(type arayna_topicClass[esi])";
+	topicebx			:text := "(type arayna_topicClass[ebx])";
+	
+	stackedeax	:text := "(type arayna_itemClass[eax])";
+
+	bufedx		:text := "(type tBuffer[edx])";
+
+type
+	
+	// filelist class ===========================================
+	arayna_fileNode:
+		record inherits (baseNode_t);
+			filename		:string;
+			buffer		:pointer to tBuffer;
+			lineNumber	:uns32;
+		endrecord;
+
+	arayna_fileList:
+		class inherits (tList);
+			
+			const
+				nodeID	:= 1000;
+				
+			override procedure create; @external;
+			override method destroy; @external;
+			method findFile (fname:string); @returns ("EAX"); @external;
+			method newNode; @external;
+			
+		endclass;
+		
+	// ===========================================================
+	
+	// araynaList class ============================================
+	arayna_listNode:
+		record inherits (baseNode_t);
+			obj	:dword;
+		endrecord;
+		
+	arayna_listClass:
+		class inherits (tBaseList);
+			const
+				nodeID	:= 1001;
+				
+			
+			override procedure create; @external;
+			override method destroy; @external;
+			method newNode; @external;
+			method findNodeID (id:uns32); @returns ("EAX"); @external;
+			method findObject (var obj:dword); @returns ("EAX"); @external;
+			method appendObject (var obj:dword); @external;
+			method empty; @external;
+		endclass;
+
+
+	arayna_baseClass:
+		class inherits (tClone);
+			var
+				id			:uns32;
+				lbl		:attr_t; // attribute labeling the object
+				desc		:attr_t;	//A full description of this object (position).
+				state		:dword;	// determines current state of objects (eg: open, closed, broken, pushed, pulled, inuse etc)
+				event		:string;
+				rtti		:dword;		// object flags
+			
+			procedure create;	@returns("ESI"); @external;
+			method setLabel( var attr:attr_t ); @external;
+			method setDesc( var attr :attr_t ); @external;
+			method destroy;							@external;
+			method runEvent;						@external;
+			method brieflyDescribe( hlist:dword );		@external;
+	 		method setVital ( attrib:dword; var attr:attr_t); @external;
+	 		method getVital ( attrib:dword; var attr:attr_t); @external;
+		endclass;
+
+	arayna_areaClass:
+		class inherits (arayna_baseClass);
+	
+			override procedure create;				@external;
+
+		endclass;
+
+	arayna_topicClass:
+		class inherits( arayna_baseClass );
+			var
+			activate		:dword;
+			deactivate	:dword;
+			override procedure create; @external;
+			override method runEvent;		@external;
+		endclass;
+
+	// this more of a prototype class,
+	// no actual game objects will exist of this class
+	arayna_objectClass:
+		class inherits (arayna_baseClass);
+			var
+				verbs				:dword[4];	// attribute flags, 128 bits
+				key				:dword;		// key or uses : an object that this object is related to
+				group				:uns32;		// allows item/room grouping
+			
+			override procedure create;			@external;
+			method fullyDescribe;				@external;
+			method setVerbs (attribptr:dword); @external;
+			method getVerbs;	@external;
+			override method getVital; @external;
+			override method setVital; @external; 
+		endclass;
+
+	arayna_itemClass:
+		class inherits (arayna_objectClass);
+			
+			var
+				
+				charges		:uns32;		// current number of charges. 
+				maxcharge	:uns32;		// maximum number of charges, or 0 if object is destroyed when charges run out
+				stack			:uns32;		// amount of objects stacked
+				maxstack		:uns32;		// maximum amount of objects that may be stacked
+				
+			override procedure create;  @external;
+			override method fullyDescribe; @external;
+			override method brieflyDescribe; @external;
+			method useCharge; @external;
+			override method getVital; @external;
+			override method setVital; @external; 
+
+		endclass;
+
+	arayna_containerClass: class inherits (arayna_objectClass)
+	
+		// this is a base arayna_objectClass than can hold other objects
+		var
+			contains		:pointer to arayna_listClass;
+				
+		override procedure create; @external;
+		override method destroy;         	@external;
+		method addObject (objPtr:dword);	@external;
+		method inventory;			@external;
+		method moveInventory ( dest:dword);	@external;
+		method searchObj( theObject:dword ); @returns ("EAX");	@external;
+		method searchLabel ( theLabel: string); @external;
+		method searchOrdinal (objNum:uns32);	@returns ("EAX"); @external;		
+		method removeObj( theObject:dword ); @external;
+		method emptyInventory;		@external;
+	endclass;
+	
+	arayna_agentClass: class inherits (arayna_containerClass)
+
+		override procedure create; @external;
+
+	endclass;
+
+		
+	arayna_playerClass: class inherits (arayna_containerClass)
+		// the player character
+		
+		// nothing special for now, just a glorified arayna_containerClass
+		override procedure create; @external;
+		override method setVital; @external;
+		override method getVital; @external;
+		
+	endclass;
+
+	arayna_roomClass :class inherits( arayna_containerClass );
+	
+		var
+			// room numbers are indexes into areaNode.data memory
+			// recover room node by areaNode.data[ <room #> *4 ]
+			north				:uns32;
+			south				:uns32;
+			east				:uns32;
+			west				:uns32;
+			northEast		:uns32;
+			northWest		:uns32;
+			southEast		:uns32;
+			southWest		:uns32;
+			up					:uns32;
+			down				:uns32;
+			
+			align(4);
+		endvar;
+			
+		override procedure create; 	@external;
+		method enterRoom;			@external;
+		
+	endclass;
+
+	

@@ -1,0 +1,1839 @@
+unit eval_unit;
+	
+	#include ("src/arayna.hhf")
+	?@nodisplay := true;
+		
+	
+procedure coerce (var left:attr_t; var right:attr_t );
+	// tries to make left and right sides compatible
+	var
+		lefttype	:dword;
+		righttype	:dword;
+
+begin coerce;
+	//dbg.put ("coerce");
+USE (EBX, ECX);
+	mov (left, ebx);
+	mov (right, ecx);
+	
+	mov ( attrebx.atype, lefttype);
+	mov ( attrecx.atype, eax);
+	mov (eax, righttype);
+	
+	if (eax = lefttype) then
+		// both types are the same, just exit
+		jmp _end;
+	endif;
+	
+	if ( lefttype = type_int ) then
+		
+		if (righttype = type_real) then
+			
+			// make left side to float
+			finit();
+			fild (attrebx.id);
+			fstp (attrebx.real);
+			mov (type_real, attrebx.atype);
+			clc();
+			
+		elseif (righttype = type_object) then
+
+			// turn left side into object
+			mov (type_object, attrebx.atype);
+			
+		endif;
+		
+	elseif ( lefttype = type_real) then
+		
+		// make right into float
+		finit();
+		fild (attrecx.id);
+		fstp (attrecx.real);
+		mov (type_real, attrecx.atype);
+
+		
+	elseif ( lefttype = type_object) then
+		
+		// make right into "object"
+		mov (type_object, attrecx.atype);
+		
+	elseif( lefttype = type_string ) then
+		
+		if( righttype = type_strconst ) then
+			
+			// make righttype into a type_string
+			loadString( right, buffer_str );
+			str.a_cpy( buffer_str );
+			mov( eax, attrecx.id );
+			mov( type_string, attrecx.atype );
+			
+		endif;
+	endif;
+	
+_end:
+ENDUSE;
+	//dbg.put ("/coerce");
+end coerce;
+
+
+procedure saveToken (var save:save_t);
+begin saveToken;
+USE(EBX);
+	mov (save, ebx);
+	mov (esi, (type save_t[ebx]).cursor);
+	move (genLine, (type save_t[ebx]).line);
+ENDUSE;
+end saveToken;
+
+procedure restoreToken (var save:save_t);
+begin restoreToken;
+USE (EBX);
+	mov (save, ebx);
+	mov ( (type save_t[ebx]).cursor, esi);
+	move ( (type save_t[ebx]).line, genLine);
+ENDUSE;
+end restoreToken;
+
+
+procedure freeAttr ( var attr: attr_t);
+begin freeAttr;
+pushfd();
+USE (EAX);
+	
+	// do not free constants!
+	mov (attr, eax);
+	cmp( attreax.tc, const_tc );
+	je done;
+	
+	if ( attreax.atype = type_string) then
+		//dbg.put("trying to free:", (type string attreax.id ));
+		str.free (attreax.id);
+	endif;
+	mov (0, attreax.id);
+	mov( 0, attreax.function );
+	mov (type_int, attreax.atype);
+	done:
+ENDUSE;
+popfd();
+end freeAttr;
+
+
+proc
+//bm=getNextObject
+	 getNextObject	:procedure( var attr:attr_t );
+	 	/*
+	 		looks up the next object and returns the symbol or type
+	 		RETURNS
+	 			FLAGS
+	 				@c			error
+	 				@nc		success
+	 				
+	 			EAX
+	 				pointer to attr
+	 					local objattr		immediate, temporary created values
+	 					global id_attr		pointer to global symbol
+	 				
+	 	*/
+	 	var
+	 		save	:save_t;
+	 
+	 begin getNextObject;
+	 	//dbg.enters( "getNextObject" );
+	 	
+	 	saveToken( save );
+	 	genLex( esi );		// grab next token
+	 	
+	 	switch( eax );
+	 	
+		case( gen_atsign )
+			
+			// check internal constant
+			
+			if (! getAction(attr) ) then
+			
+				showerror ("Illegal use of internal object/constant");
+			
+			endif;
+		
+		case( gen_real, gen_number, gen_strconst, gen_string )
+			
+			restoreToken (save);
+			expr( attr );
+			clc();
+
+		case( gen_id )
+			
+			// could be variant, constant, section or just plain gen_id
+			// determine what it is and return answer.
+			
+			//str.cpy( genID, strbuf );
+			
+			//dbg.put( "gen_id");
+			lookAgain: //dbg.put("tableLookup :", genID );
+			tableLookup( genID );		jc done;
+			mov( attr, edi );	//dbg.put("/tablelookup :", genID, " = ", eax );
+			copyAttr( id_attr, edi );
+			if( eax = gen_record ) then
+				
+				// it must have a dot directly at "[esi]"
+				if( ( type char[esi]) = '.' ) then
+					
+					// eat the dot
+					add( 1, esi );
+					
+					// begin first part of id setup  <id>#<id>
+					str.put( strbuf, genID, '#' );
+					genLex( esi );	// get the pointer field
+					str.put2( strbuf, genID );
+					str.cpy( strbuf, genID );
+					
+					jmp lookAgain;
+					
+				else
+					
+					showerror( "Illigal use of record symbol");
+					jmp done;
+
+				endif;
+				
+			elseif( eax = gen_section ) then
+				
+				//bm=TODO_section_parms
+				//dbg.put ("got gen_section");
+				
+				// we have a section.  Either we are calling a section
+				// syntax <section>()
+				// or we want to access section symbols
+				// syntax <section>.<symbol>
+				
+				if( (type byte[esi]) = '.' ) then
+					add( 1, esi );
+					str.put( strbuf, genID, '#' );
+					genLex( esi );
+					str.put2( strbuf, genID );
+					str.cpy( strbuf, genID );
+					jmp lookAgain;
+				endif;
+				
+				// must be a call
+				getLeftParen( esi );		jc done;
+				getRightParen( esi );	jc done;
+				
+				// preserve the lastobject in case
+				// this is called from an object event.
+				push( game.lastobject );
+				executeSection( genID );
+				pop( game.lastobject );
+				jc done;
+				
+				mov( attr, edi );
+				copyAttr( &return_attr, edi );
+				//mov( &return_attr, attr );
+				//dbg.put("getNextObject, /executeSection :", return_attr.tc );
+			
+			elseif( eax = gen_object ) then
+				//dbg.put("gen_object");
+				if( (type byte[esi]) = '.' ) then
+					add( 1, esi );
+					checkFunction( esi );
+					if( ebx = function_tc ) then
+						mov( attr, ebx );
+						mov( var_tc, attrebx.tc );
+						mov( type_function, attrebx.atype );
+						mov( eax, attrebx.function );
+				
+					else
+						genExtract();
+						if( checkAttribute( genID) ) then
+							mov( attr, ebx );
+							mov( eax, attrebx.function );
+							mov( type_internal, attrebx.atype );
+					
+						endif;
+					endif;
+				endif;
+				//dbg.put("/");
+			
+			elseif( eax = gen_file ) then
+				
+				//dbg.put("gen_object");
+				if( (type byte[esi]) = '.' ) then
+					add( 1, esi );
+					checkFunction( esi );
+					if( ebx = function_tc ) then
+						mov( attr, ebx );
+						//mov( var_tc, attrebx.tc );
+						mov( type_function, attrebx.atype );
+						mov( eax, attrebx.function );
+					
+					else
+					
+						showerror( "unknown function used with file object");
+						jmp done;
+					endif;
+				endif;
+				
+			
+			elseif( eax = gen_array ) then
+				
+				dbg.put("gen_array");
+				
+				str.put( buffer_str, genID, '#' );
+				getLeftBracket( esi );	jc done;
+				getUnsigned( esi );		jc done;
+				
+				str.put2( buffer_str, (type uns32 eax ), '#' );
+				genLex( esi );
+				if( eax = gen_rbracket ) then
+					str.put2( buffer_str, "1" );
+				else
+					if( eax != gen_comma ) then
+						showerror("syntax error in array");
+						jmp done;
+					endif;
+					
+					getUnsigned( esi );	jc done;
+					
+					str.put2( buffer_str, (type uns32 eax) );
+					getRightBracket( esi );	jc done;
+					
+				endif;
+				
+				str.cpy( buffer_str, genID );
+				jmp lookAgain;
+				
+			
+			elseif( eax = gen_id ) then
+				unknownid:
+				showerror( "Unknown identifier :", genID );
+				jmp done;
+				
+			endif;
+			
+			clc();
+			
+
+		default
+		
+			showerror( "Unknown object in equasion");	
+	
+		endswitch;
+		
+		done:
+	 	//dbg.exits( "getNextObject" );
+	 end getNextObject;
+
+procedure addition( var src:attr_t; var dest:attr_t );
+
+	const
+		srcebx	:text := "attrebx";
+		destecx	:text := "attrecx";
+		
+	var
+		pattr		:attr_t;
+		
+
+begin addition;
+USE (EAX, ECX, EBX);
+	mov( src, ebx );
+	mov( dest, ecx );
+	if (destecx.atype = type_internal) then
+		USE (ESI, EDI);
+		mov (destecx.id, esi);
+		baseesi.getVital (destecx.function, pattr);
+		lea (ecx, pattr);
+		ENDUSE;
+	endif;
+	coerce ([ecx], [ebx]);
+	mov (destecx.atype, eax);
+	if (eax <> srcebx.atype) then
+		showerror ("Incompatible types for addition");
+		stc();
+		jmp _end;
+	endif;
+	
+	if (eax = type_int) then
+		mov (srcebx.id, eax);
+		add (eax, destecx.id);
+		clc();
+
+	elseif (eax = type_real) then
+		finit();
+		fclex();
+		fld( srcebx.real);
+		fadd( destecx.real);
+		fstp( destecx.real);
+		clc();
+	
+	elseif ( eax = type_string) then
+		// string are processed backwards
+		str.put (genID, destecx.s, srcebx.s);
+		str.a_cpy (genID);
+		mov (eax, destecx.s);
+	
+	else
+		showerror ("Unsupported type for addition");
+		stc();
+	endif;
+	
+	if (@nc) then
+		mov (dest, ecx);
+		if (destecx.atype = type_internal) then
+			USE(ESI, EDI);
+			mov (destecx.id, esi);
+			baseesi.setVital (destecx.function, pattr);
+			ENDUSE;
+		else
+			clc();
+		endif;
+	endif;
+_end:
+ENDUSE;
+end addition;
+
+procedure subtract( var src:attr_t; var dest:attr_t );
+	const
+		srcebx	:text := "attrebx";
+		destecx	:text := "attrecx";
+
+	var
+		pattr	:attr_t;
+		
+begin subtract;
+USE (EAX, EBX, ECX);
+	mov( src, ebx );
+	mov( dest, ecx );
+	//dbg.put("dest tc = ", attrecx.tc );
+	//dbg.put("dest itp= ", attrecx.atype );
+	if (destecx.atype = type_internal) then
+		USE (ESI, EDI);
+		mov (destecx.id, esi);
+		baseesi.getVital (destecx.function, pattr);
+		lea (ecx, pattr);
+		ENDUSE;
+	endif;
+	coerce ([ecx], [ebx]);
+
+	//dbg.put("type = ", destecx.atype );
+	mov( destecx.atype, eax );
+	if ( eax <> srcebx.atype) then
+		showerror ("Incompatible types for subtraction");
+		stc();
+		jmp _end;
+	endif;
+	
+	if (eax = type_int) then
+		mov (srcebx.id, eax);
+		sub (eax, destecx.id);
+		clc();
+		if (@o) then
+			showerror ("Signed overflow/underflow during subtraction");
+			or (1, eax);
+			stc();
+		endif;
+		
+	elseif (eax = type_real) then
+		finit();
+		fclex();
+		fld (srcebx.real);
+		fsubr(destecx.real);
+		fstp (destecx.real);
+		clc();
+		
+	else
+		showerror ("Incompatible type for subtraction");
+		stc();
+	endif;
+
+	if (@nc) then
+		mov (dest, ecx);
+		if (destecx.atype = type_internal) then
+			USE(ESI, EDI);
+			mov (destecx.id, esi);
+			baseesi.setVital (destecx.function, pattr);
+			ENDUSE;
+		else
+			clc();
+		endif;
+	endif;	
+_end:
+ENDUSE;
+end subtract;
+
+
+procedure multiply( var src:attr_t; var dest:attr_t );
+	const
+		srcebx	:text := "attrebx";
+		destecx	:text := "attrecx";
+		
+	var
+		pattr	:attr_t;
+		
+begin multiply;
+	//dbg.put ("multiply");
+USE (EAX, EDX, ECX, EBX);	
+	mov (src, ebx);
+	mov (dest, ecx);
+	if (destecx.atype = type_internal) then
+		USE (ESI, EDI);
+		mov (destecx.id, esi);
+		baseesi.getVital (destecx.function, pattr);
+		lea (ecx, pattr);
+		ENDUSE;
+	endif;
+	coerce ([ecx], [ebx]);
+
+	mov ( destecx.atype, eax);
+	if (eax <> srcebx.atype) then
+		showerror ("Incompatible types for multiplication");
+		stc();
+		jmp _end;
+	endif;
+	
+	if (eax = type_int) then
+		//dbg.put ("type_int ::src::", srcebx.id, "  ::dst::", destecx.id );
+		mov (srcebx.id, eax);
+		imul (destecx.id);
+		mov (eax, destecx.id);
+		clc();
+		
+	elseif (eax = type_real) then
+		finit();
+		fclex();
+		fld (srcebx.real);
+		fmul (destecx.real);
+		fstp (destecx.real);
+		clc();
+	else
+		showerror ("Unsupported type for multiplication");
+		stc();
+	endif;
+
+	if (@nc) then
+		mov (dest, ecx);
+		if (destecx.atype = type_internal) then
+			USE(ESI, EDI);
+			mov (destecx.id, esi);
+			baseesi.setVital (destecx.function, pattr);
+			ENDUSE;
+		else
+			clc();
+		endif;
+	endif;
+_end:
+ENDUSE;
+	//dbg.put ("/multiply");
+end multiply;
+
+procedure divide( var src:attr_t; var dest:attr_t );
+	const
+		srcebx	:text := "attrebx";
+		destecx	:text := "attrecx";
+	
+	var
+		pattr	:attr_t;
+		
+
+begin divide;
+USE (EAX, EBX, ECX);
+	mov (src, ebx);
+	mov (dest, ecx);
+	if (destecx.atype = type_internal) then
+		USE (ESI, EDI);
+		mov (destecx.id, esi);
+		baseesi.getVital (destecx.function, pattr);
+		lea (ecx, pattr);
+		ENDUSE;
+	endif;
+	coerce ([ecx], [ebx]);
+
+	mov (attrecx.atype, eax);
+	if (eax <> attrebx.atype) then
+		showerror ("Division types must be the same");
+		stc();
+		jmp _end;
+	endif;
+	
+	if (eax = type_int) then
+		mov ( attrecx.id, eax);
+		cdq();
+		try
+			idiv (attrebx.id);
+			
+		anyexception
+			showerror ("Division error in expression");		
+		endtry;
+		
+		mov (eax, attrecx.id);
+		clc();
+	
+	elseif (eax = type_real) then
+		finit();
+		fclex();
+		fld (destecx.real);
+		fld (srcebx.real);
+		fdiv();
+		fstp (destecx.real);
+		clc();
+	
+	else
+		showerror ("Unsupported type for division");
+		stc();
+	endif;
+
+	if (@nc) then
+		mov (dest, ecx);
+		if (destecx.atype = type_internal) then
+			USE(ESI, EDI);
+			mov (destecx.id, esi);
+			baseesi.setVital (destecx.function, pattr);
+			ENDUSE;
+		else
+			clc();
+		endif;
+	endif;
+
+_end:
+ENDUSE;
+end divide;
+
+procedure modulo( var src:attr_t; var dest:attr_t );
+
+	const
+		srcebx	:text := "attrebx";
+		destecx	:text := "attrecx";
+	
+	var
+		pattr	:attr_t;
+		
+
+begin modulo;
+
+USE (EAX, EBX, ECX);
+	//dbg.put("modulo");
+	mov (src, ebx);
+	mov (dest, ecx);
+	if (destecx.atype = type_internal) then
+		USE (ESI, EDI);
+		mov (destecx.id, esi);
+		baseesi.getVital (destecx.function, pattr);
+		lea (ecx, pattr);
+		ENDUSE;
+	endif;
+	coerce ([ecx], [ebx]);
+
+	mov (attrecx.atype, eax);
+	if (eax <> attrebx.atype) then
+		showerror ("Modulo types must be the same");
+		stc();
+		jmp _end;
+	endif;
+	
+	if (eax = type_int) then
+		mov ( attrecx.id, eax);
+		
+		cdq();
+		try
+			idiv (attrebx.id);
+			
+		anyexception
+			showerror ("Modulo error in expression");
+		endtry;
+		
+		mov (edx, attrecx.id);
+		clc();
+		
+	else
+		showerror ("Unsupported type for modulo");
+		stc();
+	endif;
+
+	if (@nc) then
+		mov (dest, ecx);
+		if (destecx.atype = type_internal) then
+			USE(ESI, EDI);
+			mov (destecx.id, esi);
+			//dbg.put("doing internal");
+			baseesi.setVital (destecx.function, pattr);
+			ENDUSE;
+		else
+			clc();
+		endif;
+	endif;
+
+_end:
+ENDUSE;	
+end modulo;
+
+
+procedure lessThan ( var rightOp:attr_t; var leftOp:attr_t );
+const
+	left	:text := "attrecx";
+	right	:text := "attrebx";
+
+begin lessThan;
+USE (EAX, EBX, ECX);
+	mov (rightOp, ebx);
+	mov (leftOp, ecx);
+	coerce ([ecx], [ebx]);
+	mov (left.atype, eax);
+	if (eax <> right.atype) then
+		showerror ("incompatible types in logical operation");
+		stc();
+		jmp _end;
+	endif;
+	
+	if (eax = type_int) then
+		mov (left.id, eax);
+		//dbg.put ("cmp: ", left.id, "  ", right.id);
+		cmp (eax, right.id);
+		jl setTrue;
+		jmp setFalse;
+		
+	elseif (eax = type_real) then
+		finit();
+		fclex();
+		fld (right.real);
+		fld (left.real);
+		fcompp();
+		fstsw( ax );
+		sahf();
+		jb setTrue;
+		jmp setFalse;
+	
+	elseif (eax = type_string) then
+		if ( str.lt (left.id, right.id) ) then
+			str.free (left.id);
+			jmp setTrue;
+		else
+			str.free (left.id);
+			jmp setFalse;
+		endif;
+	
+	else
+		showerror ("Unsupported type for logical operation");
+		stc();
+		jmp _end;
+	endif;
+	
+	setTrue:
+		mov (1, eax);
+		jmp setBoolean;
+		
+	setFalse:
+		xor (eax, eax);
+		
+	setBoolean:
+		mov ( eax, left.id);
+		mov ( type_int, left.atype);
+		clc();
+
+_end:
+ENDUSE;
+end lessThan;
+
+procedure lessEqual( var rightOp:attr_t; var leftOp:attr_t );
+const
+	left	:text := "attrecx";
+	right	:text := "attrebx";
+
+begin lessEqual;
+USE (EAX, EBX, ECX);
+	mov (rightOp, ebx);
+	mov (leftOp, ecx);
+	coerce ([ecx], [ebx]);
+	mov (left.atype, eax);
+	if (eax <> right.atype) then
+		showerror ("incompatible types in logical operation");
+		stc();
+		jmp _end;
+	endif;
+	
+	if (eax = type_int) then
+		mov (left.id, eax);
+		cmp (eax, right.id);
+		jle setTrue;
+		jmp setFalse;
+		
+	elseif (eax = type_real) then
+		finit();
+		fclex();
+		fld (right.real);
+		fld (left.real);
+		fcompp();
+		fstsw( ax );
+		sahf();
+		jbe setTrue;
+		jmp setFalse;
+	
+	elseif (eax = type_string) then
+		if ( str.le (left.id, right.id) ) then
+			str.free (left.id);
+			jmp setTrue;
+		else
+			str.free (left.id);
+			jmp setFalse;
+		endif;
+		
+		
+	else
+		showerror ("Unsupported type for logical operation");
+		stc();
+		jmp _end;
+	endif;
+	
+	setTrue:
+		mov (1, eax);
+		jmp setBoolean;
+		
+	setFalse:
+		xor (eax, eax);
+		
+	setBoolean:
+		mov ( eax, left.id);
+		mov ( type_int, left.atype);
+		clc();
+
+_end:
+ENDUSE;
+end lessEqual;
+
+procedure equals ( var rightOp:attr_t; var leftOp:attr_t );
+const
+	left	:text := "attrecx";
+	right	:text := "attrebx";
+
+begin equals;
+//dbg.put ("equals");
+USE (EAX, EBX, ECX);
+	mov (rightOp, ebx);
+	mov (leftOp, ecx);
+	coerce ([ecx], [ebx]);
+	mov (left.atype, eax);
+	if (eax <> right.atype) then
+		showerror ("incompatible types in logical operation");
+		stc();
+		jmp _end;
+	endif;
+	
+	if (eax = type_int || eax = type_object) then
+		mov (left.id, eax);
+		cmp (eax, right.id);
+		je setTrue;
+		jmp setFalse;
+		
+	elseif (eax = type_real) then
+		//	dbg.put ("float");
+		finit();
+		fclex();
+		fld (right.real);
+		fld (left.real);
+		fcompp();
+		fstsw( ax );
+		sahf();
+		je setTrue;
+		jmp setFalse;
+	
+	elseif (eax = type_string) then
+		if ( str.eq (left.id, right.id) ) then
+			str.free (left.id);
+			jmp setTrue;
+		else
+			jmp setFalse;
+		endif;
+		
+	else
+		showerror ("Unsupported type for logical operation");
+		stc();
+		jmp _end;
+	endif;
+	
+	setTrue:
+		//		dbg.put ("setting true");
+		mov (1, eax);
+		jmp setBoolean;
+		
+	setFalse:
+		//		dbg.put ("setting false");
+		xor (eax, eax);
+		
+	setBoolean:
+		mov ( eax, left.id);
+		mov ( type_int, left.atype);
+		clc();
+
+_end:
+ENDUSE;
+end equals;
+
+procedure setEqual (var leftOp:attr_t; var rightOp:attr_t);
+	// set leftOp = rightOp	
+begin setEqual;
+	//dbg.put( "setEqual" );
+	mov (leftOp, eax);
+	if (attreax.atype = type_internal) then
+		//dbg.put ("left = internal");
+		USE (ESI, EDI);
+		mov (attreax.id, esi);
+		baseesi.setVital (attreax.function, rightOp);
+		ENDUSE;
+	else
+		mov (rightOp, ecx);
+		//dbg.put("set equal:");
+		//dbg.put("right id = ", attrecx.id );
+		//dbg.put ("right type = ", attrecx.atype );
+		freeAttr( [eax] );	
+		copyAttr( ecx, eax );
+		if( attreax.tc = const_tc )  then
+			// we don't want to change a variant to a const!
+			mov( var_tc, attreax.tc );
+		endif;
+		if( attreax.atype = type_string ) then
+			// duplicate the string because
+			// the old one will be freed
+			mov( eax, ecx );
+			str.a_cpy( attrecx.id );
+			mov( eax, attrecx.id );
+		endif;
+		
+		clc();
+	endif;
+	//dbg.put ("/setEqual");
+end setEqual;
+
+
+procedure notEquals( var rightOp:attr_t; var leftOp:attr_t );
+const
+	left	:text := "attrebx";
+
+begin notEquals;
+	equals (rightOp, leftOp);
+	if (@nc) then
+		push (ebx);
+		mov (leftOp, ebx);
+		xor (1, left.id);
+		pop (ebx);
+		clc();
+	endif;	
+end notEquals;
+
+
+procedure greaterThan ( var rightOp:attr_t; var leftOp:attr_t );
+const
+	left	:text := "attrebx";
+
+begin greaterThan;
+
+	lessEqual (rightOp, leftOp);
+	if (@nc) then
+		push (ebx);
+		mov (leftOp, ebx);
+		xor (1, left.id);
+		pop (ebx);
+		clc();
+	endif;
+
+end greaterThan;
+
+procedure greaterEqual ( var rightOp:attr_t; var leftOp:attr_t );
+const
+	left	:text := "attrebx";
+
+begin greaterEqual;
+	//dbg.put ("greaterEqual");
+	lessThan ( rightOp, leftOp);
+	if (@nc) then
+		push (ebx);
+		mov (leftOp, ebx);
+		xor (1, left.id);
+		pop (ebx);
+		clc();
+	endif;
+
+end greaterEqual;
+
+procedure logicalAnd( var rightOp:attr_t; var leftOp:attr_t );
+const
+	left	:text := "attrebx";
+	right	:text := "attrecx";
+
+begin logicalAnd;
+USE (EAX, EBX, ECX);
+	
+	mov( rightOp, ecx );
+	mov( leftOp, ebx );
+	coerce ([ecx], [ebx]);
+	mov( left.atype, eax );
+	
+	if (eax = right.atype && eax = type_int) then
+		
+		// test if both sides are true
+		
+		mov (right.id, eax);
+		if( eax ) then
+			mov( 1, eax );
+		endif;
+		
+		if( left.id > 0 ) then
+			mov( 1, left.id );
+		endif;
+		
+		and (eax, left.id);
+		
+	else
+		showerror ("Unsupported types for AND operation");
+		stc();
+	endif;
+	
+ENDUSE;
+end logicalAnd;
+
+procedure logicalOr( var rightOp:attr_t; var leftOp:attr_t );
+const
+	left	:text := "attrebx";
+	right	:text := "attrecx";
+	
+begin logicalOr;
+USE (EAX, EBX, ECX);
+	
+	mov( rightOp, ecx );
+	mov( leftOp, ebx );
+	coerce ([ecx], [ebx]);
+	mov( left.atype, eax );
+	
+	if (eax = right.atype && eax = type_int) then
+		mov (right.id, eax);
+		or (eax, left.id);
+		clc();
+		
+	else
+		showerror ("Unsupported types for AND operation");
+		stc();		
+	endif;
+ENDUSE;
+end logicalOr;
+
+procedure logicalXor( var rightOp:attr_t; var leftOp:attr_t );
+const
+	left	:text := "attrebx";
+	right	:text := "attrecx";
+
+begin logicalXor;
+USE (EAX, EBX, ECX);
+
+	mov( rightOp, ecx );
+	mov( leftOp, ebx );
+	coerce ([ecx], [ebx]);
+	mov( left.atype, eax );
+
+	if ( eax = right.atype && eax = type_int) then
+		mov (right.id, eax);
+		xor(eax, left.id);
+		clc();
+		
+	else
+		showerror ("Unsupported types for AND operation");
+		stc();
+	endif;
+ENDUSE;	
+end logicalXor;
+
+procedure tableLookup (src:string);
+
+	/*
+	 	search in global + constants
+	 	RETURNS:
+	 		EAX
+	 			gen_id					not found in table
+	 			gen_number				also genNumber
+	 			gen_real					also genReal
+	 			gen_strconst
+	 			gen_variant
+	 			gen_section
+	 			gen_record
+	 			gen_error
+	 			
+	 		IN GLOBAL SYMBOLS
+	 			id_attr					symbol pointer
+	 			genNumber				integer
+	 			genReal					real32 value
+	 			
+	 		FLAGS
+	 			@c							error
+	 			@nc						success
+	 			
+	 */
+	var
+		locstr	:string;
+		
+
+begin tableLookup;
+
+	mov( str.talloc( 100 ), locstr );
+	//dbg.enters( "tableLookup" );
+	USE (ESI, EDI,EBX, ECX);
+	
+	
+	// check local symbols
+	if( gamesect != 0 ) then
+		str.put (locstr, gamesect, '#', genID);
+		if (symbol_tbl.lookup (locstr)) then
+			
+			jmp doSymbol;
+			
+		endif;
+		
+	endif;
+	
+	// not local, check global
+	
+	if ( symbol_tbl.lookup (src)) then
+		
+		jmp doSymbol;
+		
+	endif;
+	
+	// if we are here, we didn't find any symbols, it's a gen_id
+	//dbg.put("not in table");
+	mov( gen_id, eax );
+	clc();
+	jmp done;
+	
+	doSymbol:
+		//dbg.put("table NODE :", (type tableNode[eax]).id );
+		mov ( (type tableNode[eax]).Value, ebx);
+		mov (ebx, id_attr);
+		//dbg.put(" got :", src );
+		if (attrebx.tc = const_tc) then
+		
+			//dbg.put ("constant");
+			mov( attrebx.atype, ecx);
+			//dbg.put ("atype = ", ecx, "    strconst = ", type_strconst);
+			mov ( attrebx.id , eax);
+			if (ecx = type_int) then
+				mov ( eax, genNumber);
+				mov (gen_number, eax);
+		
+			elseif (ecx = type_real ) then
+				mov (eax, (type dword genReal) );
+				mov ( ( type dword (type attr_t[ebx]).real[4]), eax);
+				mov (eax, (type dword genReal[4]));
+				mov (gen_real, eax);
+				
+			elseif (ecx = type_strconst) then
+				//loadString (eax);
+				mov (gen_strconst, eax);	
+			else
+				jmp showerr;
+			endif;
+			clc();
+			
+		elseif( attrebx.tc = var_tc ) then
+			
+			mov (gen_variant, eax);
+			if( attrebx.atype = type_object ) then
+				mov( gen_object, eax );
+			endif;
+			clc();
+			
+		elseif( attrebx.tc = file_tc ) then
+			
+			mov( gen_file, eax );
+			clc();
+			
+		elseif( attrebx.tc = section_tc ) then
+			
+			mov( gen_section, eax );
+			clc();
+			
+		elseif( attrebx.tc = record_tc ) then
+			
+			mov( gen_record, eax );
+			clc();
+			
+		//elseif( attrebx.atype = type_object ) then
+			//dbg.put("gen_object in eax ");
+		//	mov( gen_object, eax );
+			
+		elseif( attrebx.tc = array_tc ) then
+			
+			mov( gen_array, eax );
+			clc();
+			
+		else
+			showerr:
+			showerror( "## internal error: unknown typeclass :", attrebx.tc, "  ##" );
+			
+		endif;
+			
+	done:
+	ENDUSE;
+	//dbg.exits( "tableLookup" );
+end tableLookup;
+
+
+procedure expr (var attr: attr_t);
+	// expression evaluator
+	// based loosly on HLA20 expression evaluator
+	var
+		right	:attr_t;
+		op		:dword;
+		save_tkn	:save_t;
+		
+	procedure andp(var attr: attr_t);   @returns ("@nc");
+		
+		var
+			right	:attr_t;
+			save_tkn	:save_t;
+	
+		procedure cmpp(var attr: attr_t);   @returns ("@nc");
+	
+			var
+				right	:attr_t;
+				op		:dword;
+				save_tkn	:save_t;
+	
+		
+			procedure addp(var attr: attr_t); @returns ("@nc");
+	
+			var
+				right	:attr_t;
+				op		:dword;
+				save_tkn	:save_t;
+	
+
+				
+				procedure mulp(var attr: attr_t);  @returns ("@nc");
+					
+					var
+						save_tkn	:save_t;
+						right		:attr_t;
+						op			:dword;
+	
+					
+					procedure term (var attr: attr_t);  @returns ("@nc");				
+						var
+							save_tkn	:save_t;
+
+					begin term;
+						
+						//dbg.enters( "term" );
+						
+						saveToken (save_tkn);
+						genLex (esi);
+						
+						//dbg.put("term token = ", eax );
+						switch (eax);
+						
+						case( gen_strconst )
+							
+							//dbg.put ("gen_strconst");
+							mov( attr, ebx );
+							sub( 1, edi );
+							mov( edi, attrebx.id );	// start of str constant
+							mov( type_strconst, attrebx.atype );
+							mov( const_tc, attrebx.tc );
+							
+							// if there are more lines of string here, skip over them
+							forever
+								peek( esi );
+								if( eax != gen_strconst ) then
+									break;
+								endif;
+								genLex( esi );
+							endfor;
+						
+						case (gen_number)
+						
+							mov (attr, ebx);
+							mov (genNumber, attrebx.id);
+							mov (type_int, attrebx.atype);
+							mov( const_tc, attrebx.tc );
+						
+						case (gen_real)
+						
+							mov (attr, ebx);
+							finit();
+							fld (genReal);
+							fst (attrebx.real);
+							mov (type_real, attrebx.atype);
+							mov( const_tc, attrebx.tc );
+						
+						case (gen_lparen)
+						
+							expr (attr);	jc endterm;
+							getRightParen (esi);	jc endterm;
+						
+						case (gen_minus)
+							term (attr);	jc endterm;
+							// negate value
+							mov (attr, ebx);
+							mov (attrebx.atype, eax);
+							
+							if (eax = type_int) then
+								
+								mov ( attrebx.id, eax);
+								neg (eax);
+								mov (eax, attrebx.id);
+							
+							elseif (eax = type_real) then
+								finit();
+								fclex();
+								fld (attrebx.real);
+								fchs();
+								fstp (attrebx.real);
+								
+							else
+								
+								showerror ("Can't negate specified type");
+								jmp endterm;
+							endif;
+							
+							mov( var_tc, attrebx.tc );
+						
+						case (gen_exclaim)
+
+							term (attr);	jc endterm;
+							mov (attr, ebx);
+							mov (attrebx.atype, eax);
+							if (eax = type_int || eax = type_object) then
+								mov (attrebx.id, eax);
+								or (eax, eax);
+								setz (al);
+								movzx (al, eax);
+								mov (eax, attrebx.id);
+								clc();
+							else
+								showerror ("Can't 'not' specified type");
+								jmp endterm;
+							endif;
+							
+						case (gen_atsign, gen_id)
+							
+							//dbg.put ("gen_atsign or gen_id");
+							restoreToken (save_tkn);
+							getNextObject( attr );	jc termerr;
+							mov( attr, ebx );
+							
+//							dbg.put("Line :", genLine );
+//							dbg.put("attr.id = ", attrebx.id );
+//							dbg.put("attr.tc = ", attrebx.tc );
+//							dbg.put("attr.typ= ", attrebx.atype );
+//							dbg.put("attr.func=", attrebx.function );
+//									
+							if( attrebx.atype = type_internal ) then
+								
+								push( esi );
+								mov( attrebx.id, esi );
+								baseesi.getVital( attrebx.function, attr );
+								pop( esi );
+								jc endterm;
+			
+							elseif( attrebx.atype = type_function ) then
+							
+								processFunction( attr );
+							
+							elseif( attrebx.tc = var_tc ) then
+								
+								// make a copy and duplicate string if type_string
+								//mov( attr, ecx );
+								//copyAttr( ebx, ecx );
+								if( attrebx.atype = type_string ) then
+									str.a_cpy( attrebx.id );
+									mov( eax, attrebx.id );
+								endif;
+
+							endif;
+							
+							
+						case (gen_period)
+							if (getCommand (esi)) then
+								switch (eax);
+								
+								case (tkn_new)
+								
+									parseNew (esi, attr);
+									jc endterm;
+									
+								case (tkn_random)
+								
+									parseRandom (esi, attr);
+									jc endterm;
+									
+								case( tkn_getstring )
+							
+									parseGetString( attr );
+									jc endterm;
+								
+								case( tkn_getnumber )
+								
+									parseGetNumber( attr );
+									jc endterm;
+									
+								case( tkn_openfile )
+								
+									parseFileIO( attr, false );
+									jc endterm;
+									
+								case( tkn_newfile )
+								
+									parseFileIO( attr, true );
+									jc endterm;
+								
+								case( tkn_existsfile )
+								
+									parseExistFile( attr );
+									jc endterm;
+									
+								
+								default
+									jmp termerr;
+								endswitch;
+							else
+								termerr:
+								showerror ("Unknown value in term :", genID);
+								jmp endterm;
+							endif;
+							
+						default
+						
+							dbg.put ("defaulted........................................");
+							
+						endswitch;
+						
+						mov( attr, eax );
+						clc();
+						
+						endterm:
+						
+						//dbg.exits ("term" );
+					end term;
+
+					
+				begin mulp;
+					term (attr);  //mov( attr, eax ); dbg.put ("mul :", attreax.atype );
+					if (@nc) then
+						
+						forever
+							saveToken (save_tkn);
+							genLex (esi);
+							mov (eax, op);
+							if (ebx <> mulop_tc) then
+								restoreToken (save_tkn);
+								clc();
+								exit mulp;
+							endif;
+							
+							
+							lea (eax, right);
+							mem2.fillMem( [eax], @size(right), 0 );
+							term ([eax]);
+							if (@c) then
+								exit mulp;
+							endif;
+							
+							mov (op, eax);
+							if (eax = gen_asterisk) then
+								multiply (right, attr);
+							elseif (eax = gen_slash) then
+								divide ( right, attr);
+							
+							elseif( eax = gen_percent ) then
+								// modulo
+								modulo( right, attr );
+							else
+								showerror ("Bad multiplication operation");
+								break;
+							endif;
+							
+						endfor;
+					endif;
+					
+				end mulp;
+				
+			begin addp;
+				
+				mulp (attr);
+
+				if (@nc) then
+
+					forever
+						//mov (esi, save_tkn);
+						saveToken (save_tkn);
+
+						genLex (esi);
+						mov (eax, op);
+						
+						if (ebx <> addop_tc) then
+							//mov (save_tkn, esi);
+							restoreToken (save_tkn);
+							clc();
+							exit addp;
+						endif;
+						
+						lea (eax, right);
+						mem2.fillMem( [eax], @size(right), 0 );
+						mulp ( [eax] );
+						if (@c) then
+							exit addp;
+						endif;
+						
+						//coerce (attr, right);
+						
+						if (op = gen_plus) then
+							addition (right, attr);
+							freeAttr (right);
+						
+						elseif ( op = gen_minus) then
+							subtract( right, attr);
+							freeAttr (right);
+							
+						else
+							showerror ("Bad addition value in evaluation");
+							freeAttr (right);
+							stc();
+							exit addp;
+						endif;
+						
+					endfor;
+				endif;
+
+			end addp;
+
+		begin cmpp;
+			//dbg.put ("cmpp");
+			addp (attr);
+			if (@nc) then
+				forever
+					//mov (esi, save_tkn);
+					saveToken (save_tkn);
+					genLex (esi);
+					mov (eax, op);
+					
+					if (ebx <> relop_tc) then
+						
+						restoreToken (save_tkn);
+						clc();
+						exit cmpp;
+					endif;
+					
+					lea ( eax, right);
+					mem2.fillMem( [eax], @size(right), 0 );
+					addp ([eax]);
+					if (@c) then
+						exit cmpp;
+					endif;
+					
+					mov ( op, eax); //dbg.put ("cmpp, op = ", eax);
+					if (eax = gen_less ) then
+						lessThan (right, attr);
+						freeAttr (right);
+						
+					elseif (eax = gen_lessequal) then
+						//dbg.put ("lessequal");
+						lessEqual (right, attr);
+						freeAttr (right);
+						
+					elseif (eax = gen_equalequal) then
+						//dbg.put ("equals");
+						equals (right, attr);
+						freeAttr (right);
+					
+					elseif (eax = gen_notequal) then
+						notEquals (right, attr);
+						freeAttr (right);
+						
+					elseif (eax = gen_greater) then
+						greaterThan (right, attr);
+						freeAttr (right);
+						
+					elseif (eax = gen_greaterequal) then
+						greaterEqual (right, attr);
+						freeAttr (right);
+						
+					else
+						showerror ("Unsupported logical operation");
+						stc();
+						freeAttr (right);
+						exit cmpp;
+					endif;
+					
+				endfor;
+			endif;
+		end cmpp;
+
+	begin andp;
+		cmpp (attr); //dbg.put ("/cmpp :", (type dword[ebp]));
+		if (@nc) then
+
+			forever
+				saveToken (save_tkn);
+				genLex (esi);
+				
+				if (ebx <> andop_tc) then
+					
+					//mov (save_tkn, esi);
+					restoreToken (save_tkn);
+					clc();
+					exit andp;
+				endif;
+				
+				lea (eax, right);
+				mem2.fillMem( [eax], @size(right), 0 );
+				cmpp ([eax]);
+				if (@c) then
+					exit andp;
+				endif;
+				
+				logicalAnd (right, attr);
+				freeAttr (right);
+				
+			endfor;
+		endif;
+
+	end andp;
+
+	
+begin expr;
+	//dbg.enters ("expr");
+	mov( attr, eax );
+	mem2.fillMem( [eax], @size(right), 0 );
+	
+	//dbg.put ("andp = ", (type dword [ebp]) );
+	andp (attr); //dbg.put ("/andp :", (type dword[ebp]));
+	if (@nc) then
+		saveToken (save_tkn);
+		genLex (esi);
+		
+		if (ebx <> orop_tc) then
+			restoreToken (save_tkn);
+			clc();
+			jmp done;
+		endif;
+		
+		mov (eax, op);
+		lea (eax, right);
+		mem2.fillMem( [eax], @size(right), 0 );
+		
+		//dbg.put ("andp on right");
+		andp ([eax]);	jc done;
+		
+		mov (op, eax);
+		if (eax = gen_orop) then
+			
+			//dbg.put ("logical or");
+			logicalOr (right, attr);
+			
+		elseif (eax = gen_xorop) then
+			
+			logicalXor (right, attr);
+			
+		else
+			freeAttr (right);
+			showerror ("Bad OR operation");
+			jmp done;;
+		endif;
+	
+		freeAttr (right);	
+		clc();
+		
+	endif;
+	done:
+	//dbg.exits ("expr");
+end expr;
+
+
+
+procedure evaluate (src:dword in esi);
+	
+	// This procedure called when an identifyer is
+	// encountered in the source.  here, it will be
+	// determined the the id is a constant/variable or
+	// an equasion in the form of x op y.  if so, the
+	// equasion is evaluated.
+		
+	var
+		left	:pointer to attr_t;
+		right	:attr_t;
+		op		:dword;
+		save	:save_t;
+		op_done	:dword;
+		align(4);
+	
+	storage
+		attr	:attr_t;		// use to return values
+		
+		
+begin evaluate;
+	//dbg.enters("evaluate");
+	mov (false, op_done);
+	zeroAttr( attr );
+	
+	getNextObject( attr );		jc done;
+	
+	mov( &attr, eax );
+	
+//	dbg.put("func = ", attreax.function );
+//	dbg.put("atype= ", attreax.atype );
+//	dbg.put("tc = ",attreax.tc );
+	
+	if( attreax.tc = const_tc ) then
+		
+		// nothing more to do with constants
+		// this will likely generate a script error
+		jmp done;
+		
+	elseif( attreax.tc = null_tc ) then
+		
+		// nothing more to do with null returns
+		// returned when a section is called and there is no return value
+		mov( gen_section, op_done );
+		jmp done;
+		
+	elseif( attreax.atype = type_function ) then
+		
+		// for objects, we always deal with whichever
+		// local copy we are currently using, never the original
+		processFunction( attr );	jc done;
+		mov( true, op_done );
+		//dbg.separator;
+		//dbg.put( (type char[esi]),(type char[esi+1]),(type char[esi+2]), (type char[esi+3]) );
+		
+	else
+		// original object in left
+		if( attr.function > 0 ) then
+			// we have an object that
+			// has an attribute, use that instead
+			mov( &attr, eax );
+		else
+			mov( id_attr, eax );	// id_attr is original object
+		endif;
+		
+		mov( eax, left );
+		
+		// see if we have an operation
+		peek( esi );
+		if( ebx = mathop_tc ) then
+			genLex( esi );
+			mov (true, op_done);
+			mov (eax, op);
+			mov (0, right.atype);
+			switch (eax);
+			
+			case (gen_equal)
+				//dbg.put("equal");
+				expr (right);		jc ends;
+
+//				lea( ebx, right );
+//				dbg.separator;
+//				dbg.put("attr.id = ", attrebx.id );
+//				dbg.put("attr.tc = ", attrebx.tc );
+//				dbg.put("attr.typ= ", attrebx.atype );
+//				dbg.put("attr.func=", attrebx.function );
+				
+				//mov( left, ebx );
+				setEqual (left, right);
+				jc e0;
+				//dbg.put("/equal:", (type char[esi]), (type char [esi+1]));
+				//jmp done;
+	
+			case (gen_plusplus)
+				mov (1, right.id);
+				mov (type_int, right.atype);
+				mov( left, ebx );
+				addition (right, left);
+				jc e0;
+				//jmp done;
+			
+
+			case (gen_minusminus)
+				mov (1, right.id);
+				mov (type_int, right.atype);
+				mov( left, ebx );
+				if( attrebx.atype = type_object ) then
+					mov( attr.tc, eax );
+					mov( eax, attrebx.tc );
+					mov( attr.function, eax );
+					mov( eax, attrebx.function );
+				endif;
+				subtract (right, left);
+				jc e0;
+				//jmp done;
+			
+			case (gen_plusequal)
+				expr (right); 				jc e0;
+				mov( left, ebx );
+				if( attrebx.atype = type_object ) then
+					mov( attr.tc, eax );
+					mov( eax, attrebx.tc );
+					mov( attr.function, eax );
+					mov( eax, attrebx.function );
+				endif;
+				addition (right, left); jc e0;
+				
+			case (gen_minusequal)
+				expr (right);				jc e0;
+				mov( left, ebx );
+				subtract (right, left);	jc e0;
+
+				
+			case (gen_mulequal)
+				//dbg.put("gen_+mulequal");
+				expr (right);				jc e0;
+				mov( left, ebx );
+				multiply (right, left);	jc e0;
+				
+			case (gen_divequal)
+				expr (right);				jc e0;
+				mov( left, ebx );
+				divide (right, left);	jc e0;
+				
+			default
+				e0:
+					//dbg.separator;
+					//dbg.put( (type char al), "  ", (type byte al ) ); dbg.separator
+				showerror ("Unknown math operation in equasion");
+			endswitch;
+			
+			ends:
+			freeAttr (right);
+			jc done;
+		
+		else
+			
+//			zeroAttr( attr );
+//			mov( left, ecx  );
+//			//lea( ecx, left );
+//			if (attrecx.tc = object_tc) then
+//				//dbg.put ("getting vital");
+//				USE (ESI);
+//				mov (attrecx.id, esi);
+//				baseesi.getVital (attrecx.function, &attr);
+//				ENDUSE;
+//				jc done;
+//			else
+//				if (attrecx.atype = type_string) then
+//					str.a_cpy (attrecx.id);	
+//				else
+//					mov (attrecx.id, eax);
+//				endif;
+//				mov (eax, attr.id);
+//				move (attrecx.tc, attr.tc);
+//				move (attrecx.atype, attr.atype);
+//			
+//			endif;
+	
+		endif;
+
+	endif;	
+	
+	mov (&attr, eax);
+	clc();
+	done:
+		mov (op_done, ebx);
+
+	//dbg.exits ("evaluate");
+end evaluate;
+
+
+end eval_unit;
