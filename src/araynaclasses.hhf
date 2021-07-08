@@ -1,4 +1,6 @@
 
+#includeonce ("hide/classlib.hhf")
+
 const
 	
 	filenodeebx	:text := "(type arayna_fileNode[ebx])";

@@ -178,8 +178,8 @@ BEGIN
   CONTROL "",IDC_EDT_NUMBER,"Edit",0x50012000,2,1,188,13,0x00000200
 END
 IDR_VERSION VERSIONINFO
-FILEVERSION 0,94,0,0
-PRODUCTVERSION 0,94,0,0
+FILEVERSION 0,95,0,1
+PRODUCTVERSION 0,95,0,1
 FILEOS 0x00000004
 FILETYPE 0x00000000
 BEGIN
@@ -187,8 +187,8 @@ BEGIN
   BEGIN
     BLOCK "FFFF0000"
     BEGIN
-      VALUE "FileVersion", "0.94.00\0"
-      VALUE "ProductVersion", "0.94.00\0"
+      VALUE "FileVersion", "0.95.01\0"
+      VALUE "ProductVersion", "0.95.01\0"
       VALUE "CompanyName", "Sevag Krikorian\0"
       VALUE "FileDescription", "IF game scripting engine\0"
       VALUE "InternalName", "arayna\0"

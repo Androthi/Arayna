@@ -16,7 +16,6 @@ const
 
 
 	max_objects	:= $FF_FFFF;
-	//topic_mask	:= $100_0000;
 
 	saveEBX		:text := "(type savegame_t[ebx])";
 	

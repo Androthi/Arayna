@@ -42,10 +42,10 @@
 					// write some object information if the object
 					// is picked up.
 					
-					.write( "we picked up the object" nl, 
-						"Object ID = ", @this.id, nl
-						"Object Label = ", @this.label, nl
-						"Object Desc = ", @this.desc, nl nl )
+					.write( "we picked up the object" @nl, 
+						"Object ID = ", @this.id, @nl
+						"Object Label = ", @this.label, @nl
+						"Object Desc = ", @this.desc, @nl @nl )
 				}
 				
 				.elseif( @lastverb == @press ) {
@@ -58,7 +58,7 @@
 				}
 				.elseif( @lastverb == @drop ) {
 				
-					.write( "This is the end of the tutorial" nl )
+					.write( "This is the end of the tutorial" @nl )
 					.endgame
 				}
 			}
@@ -117,7 +117,7 @@
 
 	.begin {
 		
-		.write( "Hello World" nl )
+		.write( "Hello World" @nl )
 		.teleport( 1 )	
 	}
 

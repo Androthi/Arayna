@@ -150,7 +150,7 @@
 				
 				.enddialog
 				.cls
-				.write( nl, "You have reached the end of the demo" nl nl)
+				.write( @nl, "You have reached the end of the demo" @nl @nl)
 				.endgame
 			}
 		}
@@ -231,13 +231,13 @@
 		
 		// write function displays text on the main window.  It is capable
 		// of displaying quoted strings, variables, constants, math evaluation results
-		// values of internal constants.  'nl' stands for new line.  
-		.write( "This room doesn't have a standard description." nl
-					"This text is displayed from an event that is called" nl
-					"each time this room is entered." nl nl
-					"You will notice that the only exit is back to where" nl
-					"you came from.  To activate a new portal, drop the stone" nl
-					"you picked up from the other room." nl)
+		// values of internal constants.  '@nl' stands for new line.  
+		.write( "This room doesn't have a standard description." @nl
+					"This text is displayed from an event that is called" @nl
+					"each time this room is entered." @nl @nl
+					"You will notice that the o@nly exit is back to where" @nl
+					"you came from.  To activate a new portal, drop the stone" @nl
+					"you picked up from the other room." @nl)
 		
 	}
 
@@ -251,7 +251,7 @@
 		
 		.if( shortcount == 2 ) {
 			shortcount = 0
-			.write( "Moves so far :", @moves, nl )
+			.write( "Moves so far :", @moves, @nl )
 		}
 	}
 
@@ -270,15 +270,15 @@
 			.newdialog
 			
 			.if( leroy_talkstate == 0 ) {
-				.write( "Greetings friend, don't get many visitors around here." nl )
+				.write( "Greetings friend, don't get many visitors around here." @nl )
 				.activate( who, where, how, nothing, bye )
 			}
 			.elseif( leroy_talkstate == 1 ) {
-				.write( "I knew you would be back." nl )
+				.write( "I knew you would be back." @nl )
 				.activate( who, where, how, bye )
 			}
 			.else {
-				.write( "Yes?" nl )
+				.write( "Yes?" @nl )
 				.activate( ready, bye )
 			}
 			
@@ -292,8 +292,8 @@
 	.begin {	
 		
 		.cls
-		.write ( "Welcome to the Arayna demo module." nl
-					"This short 'adventure' covers many aspects of the scripting language available in Arayna." nl nl)
+		.write ( "Welcome to the Arayna demo module." @nl
+					"This short 'adventure' covers many aspects of the scripting language available in Arayna." @nl @nl)
 
 		 //place the player's starting location
 		.teleport( demo0 )
