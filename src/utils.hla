@@ -3,7 +3,7 @@ unit utilsunit;
 
 
 readonly
-	version	:string := "v0.95.01";
+	version	:string := "v0.95.05";
 	
 	AboutAraynaTxt: string :=
 	("Arayna - a GUI console running a scripting engine for developing Interactive Fiction style games." nl

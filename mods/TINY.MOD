@@ -777,7 +777,6 @@ walkthrough
 	
 		.write ( "Welcome to Arayna sample module.  This short 'adventure' attempts to cover some of the more advanced aspects of the arayna engine" @nl )
 		.wait
-	
 		// place the player's starting location
 		.teleport( origin )
 		

@@ -2709,8 +2709,13 @@ begin parseBegin;
 end parseBegin;
 
 procedure parseFileIO( var attr:attr_t; new:boolean );
+
+	var fname	:string;
+
 begin parseFileIO;
-		
+	
+	mov( str.talloc( 400 ), fname );
+	
 	if( new ) then
 		
 		// optional ()
@@ -2730,9 +2735,9 @@ begin parseFileIO;
 		mov( attr, ecx );
 	
 		if( attrecx.atype = type_string ) then
-			str.cpy( attrecx.id, buffer_str );
+			str.cpy( attrecx.id, fname );
 		elseif( attrecx.atype = type_strconst ) then
-			loadString( attr, buffer_str );
+			loadString( attr, fname );
 		else
 			showerror( "Expecting a quoted string representing a filename");
 			jmp done;
@@ -2741,12 +2746,12 @@ begin parseFileIO;
 		getRightParen( esi );	jc done;
 
 		
-		if( filesys.exists( buffer_str ) ) then
+		if( filesys.exists( fname ) ) then
 			push( esi );	
-			tBuffer.create( buffer_str );
+			tBuffer.create( fname );
 			
 		else
-			showerror( "file not found :", buffer_str );
+			showerror( "file not found :", fname );
 			jmp done;
 		endif;
 	endif;
@@ -2756,7 +2761,7 @@ begin parseFileIO;
 	mov( esi, attrecx.buffer );
 	mov( 2, (type tBuffer[esi]).decimal );
 
-	dbg.put("opened :", buffer_str );
+	dbg.put("parse file :", fname );
 	clc();
 	
 	next:
@@ -3305,9 +3310,9 @@ begin parse;
 	#endif
 */
 	if ( ! eax) then
-		//dbg.put ("error during parsing");
-				w.SendMessage( hwnd, ARAYNA_RESET, 0, 0 );
-				CleanUp();
+		dbg.put ("error during parsing or endgame");
+	//			w.SendMessage( hwnd, ARAYNA_RESET, 0, 0 );
+	//			CleanUp();
 		jmp done;
 	endif;
 		
@@ -4181,8 +4186,9 @@ begin runSection;
 
 		
 			case (tkn_endgame)
-				w.SendMessage (hwnd, ARAYNA_RESET, 0, 0);
-				CleanUp();
+				dbg.put("endgame reached");
+				//w.SendMessage (hwnd, ARAYNA_RESET, 0, 0);
+				//CleanUp();
 				mov( gen_error, eax );
 				jmp done;
 				
@@ -4190,7 +4196,7 @@ begin runSection;
 			
 		
 		case (gen_id, gen_atsign)
-			//dbg.put("id or at");
+			dbg.put("id or at");
 			restoreToken (save_tkn);
 			evaluate (esi);
 			//dbg.put("/evaluae");
@@ -4774,7 +4780,7 @@ begin processFunction;
 
 	
 	case( func_save )
-		
+		dbg.put("func_save");
 		if( attrebx.tc != file_tc ) then
 			showerror("save function may only be used on file handle objects" );
 			jmp done;
@@ -4785,7 +4791,8 @@ begin processFunction;
 		// careful not to overwrite attr
 		expr( battr );				jc done;
 		getRightParen( esi );	jc done;
-	
+
+
 		mov( &battr, ecx );
 	
 		if( attrecx.atype = type_string ) then
@@ -4798,14 +4805,17 @@ begin processFunction;
 		endif;
 		freeAttr( battr );
 		
+		dbg.put("buffer_str = ", buffer_str );
+
 		push( esi );
 		mov( attr, esi );
 		mov( attresi.id, esi );
 		(type tBuffer[esi]).toFile( buffer_str );		
 		pop( esi );
+		or( 1, ebx );		
 		
 	case( func_seek )
-	
+		dbg.put("funk_seek")
 		if( attrebx.tc != file_tc ) then
 			showerror("seek function may only be used on file handle objects" );
 			jmp done;
@@ -4825,10 +4835,11 @@ begin processFunction;
 			dec( ecx );
 		endwhile;
 		pop( esi );
+
 		
 	case( func_close )
 		
-		dbg.put("close");
+		dbg.put("func_close");
 		
 		if( attrebx.tc != file_tc ) then
 			showerror("close function may only be used on file handle objects" );
